@@ -10,7 +10,7 @@ import numpy as np
 import numba
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def wherevec(vec, matrix):
     for row in range(len(matrix)):
         if np.sum((matrix[row] - vec) == 0) == len(matrix[0]):
@@ -18,7 +18,7 @@ def wherevec(vec, matrix):
     return -1
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def enable_set(A1, A2, M):
     ena_list = []
     ena_mlist = []

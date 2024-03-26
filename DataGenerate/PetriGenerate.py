@@ -89,24 +89,15 @@ def rand_generate_petri(place_num, tran_num):
         petri_matrix[first_p - 1][first_t - place_num - 1 + tran_num] = 1
     np.random.shuffle(remain_node)
 
-    for i in range(len(remain_node)):
-        # p_list, t_list = split_pt(remain_node, place_num)
+    for r_node in np.random.permutation(remain_node):
         subp_list, subt_list = split_pt(sub_graph, place_num)
 
-        # if len(p_list) > 0 and len(subt_list) > 0:
-        #     node1 = np.random.choice(p_list)
-        # else:
-        #     node1 = np.random.choice(t_list)
-        r_node = np.random.choice(remain_node)
         if r_node <= place_num:  # Is it a place?
             p = r_node
             t = np.random.choice(subt_list)
-            rand_num = np.random.rand(0, 1)
-            # print(rand_num)
         else:
             p = np.random.choice(subp_list)
             t = r_node
-            rand_num = np.random.rand(0, 1)
         
         if rand_num <= 0.5:
             petri_matrix[p - 1][t - place_num - 1] = 1
