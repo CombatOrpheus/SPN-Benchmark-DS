@@ -10,11 +10,12 @@ import numpy as np
 import numba
 
 
+@numba.jit
 def wherevec(vec, matrix):
-    # Broadcast comparison for element-wise check between vec and each row of matrix
-    idxs = np.all(matrix == vec, axis=1)
-    # Return the index of the first True value using np.argmax
-    return np.argmax(idxs) if np.any(idxs) else -1
+    for row in range(len(matrix)):
+        if np.sum((matrix[row] - vec) == 0) == len(matrix[0]):
+            return row
+    return -1
 
 
 @numba.jit
