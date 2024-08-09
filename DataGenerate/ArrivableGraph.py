@@ -11,22 +11,22 @@ import numba
 from random import choice
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def wherevec(vec, matrix):
     for row in range(len(matrix)):
-        if np.sum((matrix[row] - vec) == 0) == len(matrix[0]):
+        if np.allclose(matrix[row, :], vec):
             return row
     return -1
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def enable_set(A1, A2, M):
     ena_list = []
     ena_mlist = []
 
     for i in range(A1.shape[1]):
         # Pre-set
-        pro_idx = np.argwhere(A1[:, i] == 1).flatten()
+        pro_idx = np.nonzero(A1[:, i] == 1)
         m_token = M[pro_idx].flatten()
         m_enable = np.argwhere(m_token > 0).flatten()
         if len(m_enable) == len(m_token):
@@ -77,8 +77,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
 
         new_m = choice(new_list)
-        gra_en_sets, tran_sets = enable_set(
-            leftmatrix, rightmatrix, v_list[new_m])
+        gra_en_sets, tran_sets = enable_set(leftmatrix, rightmatrix, v_list[new_m])
         if np.any(np.array(gra_en_sets) > place_upper_limit):
             bound_flag = False
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
