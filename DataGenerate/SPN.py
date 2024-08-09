@@ -40,10 +40,8 @@ def avg_mark_nums(v_list, steady_state_prob):
     token_list = []
     for v in v_list:
         token_list.extend(np.unique(v))
-    # print(token_list)
     token_list = np.unique(token_list)
 
-    # 初始化密度列表，row为标识位置,col为对应token_list 的下标
     mark_dens_list = np.zeros((len(v_list[0]),len(token_list)))
     arr_v_list = np.array(v_list)
     for pi in range(len(v_list[0])):
@@ -54,13 +52,7 @@ def avg_mark_nums(v_list, steady_state_prob):
             # pipeitok_idx = np.array(pipeitok_idx,dtype=int)
             mark_dens_list[pi][tok_loc] = np.sum(steady_state_prob[pipeitok_idx])
 
-    mu_mark_nums = []
-    for wd_gl in range(len(mark_dens_list)):
-        sum = 0
-        for p_idx in range(len(token_list)):
-            sum = sum +  token_list[p_idx] * mark_dens_list[wd_gl][p_idx]
-        mu_mark_nums.extend([sum])
-
+    mu_mark_nums = np.sum(mark_dens_list * token_list, axis=1).tolist()
     return mark_dens_list,mu_mark_nums
 
 
