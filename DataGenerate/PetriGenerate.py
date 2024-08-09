@@ -8,14 +8,7 @@
 """
 import numba
 import numpy as np
-
-
-@numba.jit(nopython=True, cache=True)
-def split_pt(node_list, place_num):
-    p_list = [x for x in node_list if x <= place_num]
-    t_list = [x for x in node_list if x > place_num]
-
-    return p_list, t_list
+from random import choice
 
 
 @numba.jit(nopython=True, cache=True)
@@ -62,15 +55,12 @@ def add_node(petri_matrix, tran_num):
 
 
 def rand_generate_petri(place_num, tran_num):
-    sub_graph = []
     remain_node = [i + 1 for i in range(place_num + tran_num)]
     petri_matrix = np.zeros((place_num, 2 * tran_num + 1), dtype=int)
     # The first selected point in the picture, randomly find other points for him to connect
-    p_list, t_list = split_pt(remain_node, place_num)
-    first_p = np.random.choice(p_list)
-    first_t = np.random.choice(t_list)
+    first_p = choice([x for x in remain_node if x <= place_num])
+    first_t = choice([x for x in remain_node if x > place_num])
 
-    sub_graph.extend([first_p, first_t])
     remain_node.remove(first_p)
     remain_node.remove(first_t)
     rand_num = np.random.rand(0, 1)
@@ -80,26 +70,26 @@ def rand_generate_petri(place_num, tran_num):
         petri_matrix[first_p - 1][first_t - place_num - 1 + tran_num] = 1
     np.random.shuffle(remain_node)
 
+    sub_graph = np.array(([first_p, first_t]))
     for r_node in np.random.permutation(remain_node):
-        subp_list, subt_list = split_pt(sub_graph, place_num)
+        subp_list = sub_graph[sub_graph <= place_num]
+        subt_list = sub_graph[sub_graph > place_num]
 
         if r_node <= place_num:  # Is it a place?
             p = r_node
-            t = np.random.choice(subt_list)
+            t = choice(subt_list)
         else:
-            p = np.random.choice(subp_list)
+            p = choice(subp_list)
             t = r_node
         
         if rand_num <= 0.5:
             petri_matrix[p - 1][t - place_num - 1] = 1
         else:
             petri_matrix[p - 1][t - place_num - 1 + tran_num] = 1
-        sub_graph.append(r_node)
+        sub_graph = np.concatenate((sub_graph, [r_node]))
         remain_node.remove(r_node)
 
-    # The front is to prevent isolated subgraphs
-
-    # token
+    
     rand_num = np.random.randint(0, place_num)
     petri_matrix[rand_num][-1] = 1
 
