@@ -8,6 +8,7 @@
 """
 import numpy as np
 import numba
+from random import choice
 
 
 @numba.jit(nopython=True)
@@ -75,13 +76,12 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             bound_flag = False
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
 
-        new_m = np.random.choice(new_list)
+        new_m = choice(new_list)
         gra_en_sets, tran_sets = enable_set(
             leftmatrix, rightmatrix, v_list[new_m])
-        for bs in gra_en_sets:
-            if np.any(bs > place_upper_limit):
-                bound_flag = False
-                return v_list, edage_list, arctrans_list, tran_num, bound_flag
+        if np.any(np.array(gra_en_sets) > place_upper_limit):
+            bound_flag = False
+            return v_list, edage_list, arctrans_list, tran_num, bound_flag
 
         if len(gra_en_sets) == 0:
             new_list.remove(new_m)
@@ -89,11 +89,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             # Traverse all enable marks
             for en_m, ent_idx in zip(gra_en_sets, tran_sets):
                 # Calculate the current enable transition, generate a new mark and save it in M_new.
-
-                # Use the t matrix to sample, and obtain the mark increase or decrease under the current transition
-                t = np.zeros(tran_num)
-                t[ent_idx] = 1
-                M_new = np.array(v_list[new_m] + np.dot(C, t), dtype=int)
+                M_new = np.array(v_list[new_m] + C[:, ent_idx], dtype=int)
                 M_newidx = wherevec(M_new, np.array(v_list))
                 if M_newidx == -1:
                     counter += 1
