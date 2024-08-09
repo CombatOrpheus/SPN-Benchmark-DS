@@ -6,16 +6,19 @@
 # @Author  : mingjian
     描述
 """
-from DataGenerate import PetriGenerate as PeGen
-from DataVisualization import Visual
-from DataGenerate import SPN
-from utils import DataUtil as DU
-from joblib import Parallel, delayed
 import argparse
 import os
 import shutil
+
 import numpy as np
-from DataGenerate import DataTransformation
+from joblib import Parallel, delayed
+from tqdm import tqdm, trange
+
+from DataGenerate import SPN, DataTransformation
+from DataGenerate import PetriGenerate as PeGen
+from DataVisualization import Visual
+from utils import DataUtil as DU
+
 
 def generate_spn(config, write_loc, data_idx):
     place_upper_bound = config['place_upper_bound']
@@ -62,17 +65,17 @@ if __name__ == '__main__':
 
     print(tmp_write_dir)
     DU.mkdir(tmp_write_dir)
-    Parallel(n_jobs=parallel_job)(delayed(generate_spn)(config, tmp_write_dir, i + 1) for i in range(data_num))
+    #Parallel(n_jobs=parallel_job)(delayed(generate_spn)(config, tmp_write_dir, i + 1) for i in trange(data_num))
+    for i in trange(data_num):
+        generate_spn(config, tmp_write_dir, i + 1)
     all_data = DU.load_alldata_from_json(tmp_write_dir)
-    # print(len(all_data))
-    # print(os.path.join(write_data_loc, "all_data.json"))
     new_transfo_datas = {}
     counter = 1
     print("*"*30 + "data transformation begin" + "*"*30)
     if transformation_flag:
-        for data in all_data.values():
+        for data in tqdm(all_data.values(), desc='Data Transform'):
             all_ex_data = DataTransformation.transformation(data['petri_net'],place_upper_bound,marks_lower_limit,marks_upper_limit)
-            print("transformation num : %s" % str(len(all_ex_data)))
+            #print("transformation num : %s" % str(len(all_ex_data)))
             if len(all_ex_data) >= maxtransform_num:
                 data_range = np.arange(len(all_ex_data))
                 sample_index = np.random.choice(data_range, maxtransform_num, replace=False)
@@ -82,25 +85,19 @@ if __name__ == '__main__':
                 new_transfo_datas["data%s" % str(counter)] = all_ex_data[se_idx]
                 counter += 1
         print("*" * 30 + "data transformation finish" + "*" * 30)
-            # print("transformation num : %s"%str(len(all_ex_data)))
-            # for ex_data in all_ex_data:
-            #     new_transfo_datas["data%s"%str(counter+1)] = ex_data
-            #     counter += 1
 
-    # all_data = {**all_data,**new_transfo_datas}
     if transformation_flag:
         all_data = new_transfo_datas
     print("total data number : %s"%str(len(all_data)))
     ori_data_loc = "ori_data"
     DU.mkdir(os.path.join(write_data_loc,ori_data_loc))
     DU.save_data_to_json(os.path.join(write_data_loc,ori_data_loc,"all_data.json"), all_data)
-    # del tmp dir
     print(all_data.keys())
 
     if visual_flag:
         DU.mkdir(w_pic_loc)
         counter = 1
-        for data in all_data.values():
+        for data in tqdm(all_data.values(), desc='Visual'):
             Visual.plot_petri(data['petri_net'], os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
             Visual.plot_spn(data['arr_vlist'], data['arr_edge'], data['arr_tranidx'],
                             data['spn_labda'], data['spn_steadypro'], data['spn_markdens'],
