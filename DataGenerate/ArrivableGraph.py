@@ -10,7 +10,6 @@ import numpy as np
 import numba
 from random import choice
 
-
 @numba.jit(nopython=True, cache=True)
 def wherevec(vec, matrix):
     for row in range(len(matrix)):
@@ -35,7 +34,7 @@ def enable_set(A1, A2, M):
             # Update the mark, subtract 1 from the previous set and add 1 to the post set
             m_temp[pro_idx] -= 1
             # post set
-            post_idx = np.argwhere(A2[:, i] == 1).flatten()
+            post_idx = np.nonzero(A2[:, i] == 1)
             m_temp[post_idx] += 1
             ena_mlist.append(m_temp)
 
@@ -78,7 +77,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
 
         new_m = choice(new_list)
         gra_en_sets, tran_sets = enable_set(leftmatrix, rightmatrix, v_list[new_m])
-        if np.any(np.array(gra_en_sets) > place_upper_limit):
+        if np.any(np.asarray(gra_en_sets) > place_upper_limit):
             bound_flag = False
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
 
@@ -88,8 +87,8 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             # Traverse all enable marks
             for en_m, ent_idx in zip(gra_en_sets, tran_sets):
                 # Calculate the current enable transition, generate a new mark and save it in M_new.
-                M_new = np.array(v_list[new_m] + C[:, ent_idx], dtype=int)
-                M_newidx = wherevec(M_new, np.array(v_list))
+                M_new = np.asarray(v_list[new_m] + C[:, ent_idx], dtype=int)
+                M_newidx = wherevec(M_new, np.asarray(v_list))
                 if M_newidx == -1:
                     counter += 1
                     v_list.append(M_new)
