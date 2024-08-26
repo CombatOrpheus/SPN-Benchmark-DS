@@ -1,0 +1,24 @@
+name: SPN-Benchmarks
+channels:
+  - defaults
+  - pytorch
+  - conda-forge
+dependencies:
+  - python
+  - cython
+  - numpy
+  - numba
+  - joblib
+  - tqdm
+  - pytorch
+  - torchvision
+  - jsonpickle
+  - jsonschema
+  - scikit-learn
+  - xlrd
+  - xlutils
+  - xlwt
+  - dgl
+  - graphviz
+  - scipy
+  - scalene
