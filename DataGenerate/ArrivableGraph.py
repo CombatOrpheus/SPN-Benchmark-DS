@@ -9,6 +9,7 @@
 import numpy as np
 import numba
 from random import choice
+from .wherevec import wherevec_cython
 
 @numba.jit(nopython=True, cache=True)
 def wherevec(vec, matrix):
@@ -18,27 +19,16 @@ def wherevec(vec, matrix):
     return -1
 
 
-@numba.jit(nopython=True, cache=True)
-def enable_set(A1, A2, M):
-    ena_list = []
-    ena_mlist = []
+def enabled_sets(pre_set, post_set, M):
+    # Find enabled transitions
+    M = np.expand_dims(M, axis=1)
+    enabled_transitions = np.where(np.all(M >= pre_set, axis=0))[0]
 
-    for i in range(A1.shape[1]):
-        # Pre-set
-        pro_idx = np.nonzero(A1[:, i] == 1)
-        m_token = M[pro_idx].flatten()
-        m_enable = np.argwhere(m_token > 0).flatten()
-        if len(m_enable) == len(m_token):
-            m_temp = M.copy()
-            ena_list.append(i)
-            # Update the mark, subtract 1 from the previous set and add 1 to the post set
-            m_temp[pro_idx] -= 1
-            # post set
-            post_idx = np.nonzero(A2[:, i] == 1)
-            m_temp[post_idx] += 1
-            ena_mlist.append(m_temp)
+    # Calculate new markings
+    new_markings = M - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
 
-    return ena_mlist, ena_list
+    return new_markings, enabled_transitions
+
 
 
 def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
@@ -76,7 +66,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
 
         new_m = choice(new_list)
-        gra_en_sets, tran_sets = enable_set(leftmatrix, rightmatrix, v_list[new_m])
+        gra_en_sets, tran_sets = enabled_sets(leftmatrix, rightmatrix, v_list[new_m])
         if np.any(np.asarray(gra_en_sets) > place_upper_limit):
             bound_flag = False
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
@@ -88,7 +78,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
             for en_m, ent_idx in zip(gra_en_sets, tran_sets):
                 # Calculate the current enable transition, generate a new mark and save it in M_new.
                 M_new = np.asarray(v_list[new_m] + C[:, ent_idx], dtype=int)
-                M_newidx = wherevec(M_new, np.asarray(v_list))
+                M_newidx = wherevec_cython(M_new, np.asarray(v_list))
                 if M_newidx == -1:
                     counter += 1
                     v_list.append(M_new)
