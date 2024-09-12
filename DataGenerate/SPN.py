@@ -8,8 +8,6 @@
 """
 from scipy.linalg import solve
 import numpy as np
-from numpy.linalg import lstsq
-from numpy.linalg import solve
 from DataGenerate import ArrivableGraph as ArrGra
 
 
