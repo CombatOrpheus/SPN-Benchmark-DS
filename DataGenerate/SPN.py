@@ -6,68 +6,68 @@
 # @Author  : mingjian
     描述
 """
-from scipy.linalg import solve
+
 import numpy as np
+from numpy.linalg import solve
+
 from DataGenerate import ArrivableGraph as ArrGra
 
 
-
-def state_equation(v_list, edage_list, arctrans_list, labda):
-    m_num = len(v_list)
-    redundant_state_matrix = np.zeros((m_num + 1, m_num), dtype=int)
-    y_list = np.zeros(m_num, dtype=int)
+def state_equation(vertices, edges, arc_transitions, lambda_values):
+    num_vertices = len(vertices)
+    redundant_state_matrix = np.zeros((num_vertices + 1, num_vertices), dtype=int)
+    y_list = np.zeros(num_vertices, dtype=int)
     y_list[-1] = 1
     redundant_state_matrix[-1, :] = 1
 
-    for ed_idx in range(len(edage_list)):
-        # pb_idx = int(re.findall(r"\d+\.?\d*", str(arctrans_list[ed_idx]))[0]) - 1
-        pb_idx = int(arctrans_list[ed_idx])
-        redundant_state_matrix[edage_list[ed_idx][0], edage_list[ed_idx][0]] += (- labda[pb_idx])
-        redundant_state_matrix[edage_list[ed_idx][1], edage_list[ed_idx][0]] += (labda[pb_idx])
+    for edge, arc_transition in zip(edges, arc_transitions):
+        v1, v2 = edge
+        redundant_state_matrix[v1, v1] -= lambda_values[arc_transition]
+        redundant_state_matrix[v2, v1] += lambda_values[arc_transition]
 
     state_matrix = []
-    for i in range(m_num - 1):
+    for i in range(num_vertices - 1):
         state_matrix.append(redundant_state_matrix[i])
     state_matrix.append(redundant_state_matrix[-1, :])
-    return state_matrix,y_list
+
+    return state_matrix, y_list
 
 
+def avg_mark_nums(vertices, steady_state_probabilities):
+    unique_tokens = []
+    for vertex in vertices:
+        unique_tokens.extend(np.unique(vertex))
+    unique_tokens = np.unique(unique_tokens)
 
-def avg_mark_nums(v_list, steady_state_prob):
-    # 寻找可能的托肯数量
-    token_list = []
-    for v in v_list:
-        token_list.extend(np.unique(v))
-    token_list = np.unique(token_list)
+    mark_density_matrix = np.zeros((len(vertices[0]), len(unique_tokens)))
+    vertices_array = np.array(vertices)
 
-    mark_dens_list = np.zeros((len(v_list[0]),len(token_list)))
-    arr_v_list = np.array(v_list)
-    for pi in range(len(v_list[0])):
-        tok_uni = np.unique(arr_v_list[:,pi])
-        for tok  in tok_uni:
-            tok_loc = np.argwhere(token_list == tok)[0]
-            pipeitok_idx = np.argwhere(arr_v_list[:, pi] == tok).flatten()
-            # pipeitok_idx = np.array(pipeitok_idx,dtype=int)
-            mark_dens_list[pi][tok_loc] = np.sum(steady_state_prob[pipeitok_idx])
+    for vertex_index in range(len(vertices[0])):
+        vertex_tokens = np.unique(vertices_array[:, vertex_index])
+        for token in vertex_tokens:
+            token_index = np.where(unique_tokens == token)[0][0]
+            token_indices_in_vertex = np.where(vertices_array[:, vertex_index] == token)[0]
+            mark_density_matrix[vertex_index][token_index] = np.sum(
+                steady_state_probabilities[token_indices_in_vertex]
+            )
 
-    mu_mark_nums = np.sum(mark_dens_list * token_list, axis=1).tolist()
-    return mark_dens_list,mu_mark_nums
+    # Calculate the average mark numbers for each vertex
+    average_mark_numbers = np.sum(mark_density_matrix * unique_tokens, axis=1).tolist()
 
+    return mark_density_matrix, average_mark_numbers
 
 
 def generate_sgn_task(v_list, edage_list, arctrans_list, tran_num):
-    # labda = np.array([2,1,1,3,2])
-    labda = np.random.randint(1,11,size=tran_num)
-    state_matrix,y_list = state_equation(v_list, edage_list, arctrans_list, labda)
-    # print(np.array(state_matrix))
-    # print(y_list)
+    labda = np.random.randint(1, 11, size=tran_num)
+    state_matrix, y_list = state_equation(v_list, edage_list, arctrans_list, labda)
     sv = None
     try:
-        sv = solve(state_matrix,y_list.T)
-        mark_dens_list,mu_mark_nums = avg_mark_nums(v_list, sv)
+        sv = solve(state_matrix, y_list.T)
+        mark_dens_list, mu_mark_nums = avg_mark_nums(v_list, sv)
     except np.linalg.linalg.LinAlgError:
-        mark_dens_list,mu_mark_nums = None,None
-    return sv,mark_dens_list,mu_mark_nums,labda
+        mark_dens_list, mu_mark_nums = None, None
+    return sv, mark_dens_list, mu_mark_nums, labda
+
 
 def convert_data(npdata):
     return np.array(npdata).astype(int).tolist()
@@ -77,96 +77,109 @@ def is_connected_graph(petri_matrix):
     petri_matrix = np.array(petri_matrix)
     trans_num = len(petri_matrix[0]) // 2
     flag = True
-    # print(np.sum(petri_matrix == 0))
     for row in range(len(petri_matrix)):
-        if np.sum(petri_matrix[row,:-1]) == 0:
+        if np.sum(petri_matrix[row, :-1]) == 0:
             return False
     for col in range(trans_num):
-        if np.sum(petri_matrix[:,col]) +  np.sum(petri_matrix[:,col+trans_num]) == 0 :
+        if np.sum(petri_matrix[:, col]) + np.sum(petri_matrix[:, col + trans_num]) == 0:
             return False
     return flag
 
 
-def filter_spn(petri_matrix, place_upper_bound=10, marks_lower_limit = 4, marks_upper_limit=500):
-    v_list,edage_list,arctrans_list,tran_num,bound_flag = ArrGra.get_arr_gra(petri_matrix,place_upper_bound,marks_upper_limit)
+def filter_spn(
+    petri_matrix, place_upper_bound=10, marks_lower_limit=4, marks_upper_limit=500
+):
+    v_list, edage_list, arctrans_list, tran_num, bound_flag = ArrGra.get_arr_gra(
+        petri_matrix, place_upper_bound, marks_upper_limit
+    )
     results_dict = {}
-    if bound_flag == False or len(v_list) < marks_lower_limit:
-        return results_dict,False
-    sv,mark_dens_list,mu_mark_nums,labda = generate_sgn_task(v_list, edage_list, arctrans_list, tran_num)
+    if not bound_flag or len(v_list) < marks_lower_limit:
+        return results_dict, False
+    sv, mark_dens_list, mu_mark_nums, labda = generate_sgn_task(
+        v_list, edage_list, arctrans_list, tran_num
+    )
     if sv is None:
-        return results_dict,False
-
-    if is_connected_graph(petri_matrix) == False:
         return results_dict, False
 
+    if not is_connected_graph(petri_matrix):
+        return results_dict, False
 
-    results_dict['petri_net'] = convert_data(petri_matrix)
-    results_dict['arr_vlist'] = convert_data(v_list)
-    results_dict['arr_edge'] = convert_data(edage_list)
-    results_dict['arr_tranidx'] = convert_data(arctrans_list)
-    results_dict['spn_labda'] = np.array(labda).tolist()
-    results_dict['spn_steadypro'] = np.array(sv).tolist()
-    results_dict['spn_markdens'] = np.array(mark_dens_list).tolist()
-    results_dict['spn_allmus'] = np.array(mu_mark_nums).tolist()
-    results_dict['spn_mu'] = np.sum(mu_mark_nums)
+    results_dict["petri_net"] = convert_data(petri_matrix)
+    results_dict["arr_vlist"] = convert_data(v_list)
+    results_dict["arr_edge"] = convert_data(edage_list)
+    results_dict["arr_tranidx"] = convert_data(arctrans_list)
+    results_dict["spn_labda"] = np.array(labda).tolist()
+    results_dict["spn_steadypro"] = np.array(sv).tolist()
+    results_dict["spn_markdens"] = np.array(mark_dens_list).tolist()
+    results_dict["spn_allmus"] = np.array(mu_mark_nums).tolist()
+    results_dict["spn_mu"] = np.sum(mu_mark_nums)
 
-    return results_dict,True
+    return results_dict, True
 
 
-def generate_sgn_task_given_labda(v_list, edage_list, arctrans_list,labda):
-    # labda = np.array([2,1,1,3,2])
-    # labda = np.random.randint(1,11,size=tran_num)
-    state_matrix,y_list = state_equation(v_list, edage_list, arctrans_list, labda)
-    # print(np.array(state_matrix))
-    # print(y_list)
+def generate_sgn_task_given_labda(v_list, edage_list, arctrans_list, labda):
+    state_matrix, y_list = state_equation(v_list, edage_list, arctrans_list, labda)
     sv = None
     try:
-        sv = solve(state_matrix,y_list.T)
-        mark_dens_list,mu_mark_nums = avg_mark_nums(v_list, sv)
+        sv = solve(state_matrix, y_list.T)
+        mark_dens_list, mu_mark_nums = avg_mark_nums(v_list, sv)
     except np.linalg.linalg.LinAlgError:
-        mark_dens_list,mu_mark_nums = None,None
-    return sv,mark_dens_list,mu_mark_nums
+        mark_dens_list, mu_mark_nums = None, None
+    return sv, mark_dens_list, mu_mark_nums
 
-def get_spn(petri_matrix,v_list, edage_list, arctrans_list,labda):
-    results_dict = {}
-    sv,mark_dens_list,mu_mark_nums = generate_sgn_task_given_labda(v_list, edage_list, arctrans_list, labda)
-    if sv is None:
-        return results_dict,False
-    if is_connected_graph(petri_matrix) == False:
-        return results_dict, False
-    results_dict['petri_net'] = convert_data(petri_matrix)
-    results_dict['arr_vlist'] = convert_data(v_list)
-    results_dict['arr_edge'] = convert_data(edage_list)
-    results_dict['arr_tranidx'] = convert_data(arctrans_list)
-    results_dict['spn_labda'] = np.array(labda).tolist()
-    results_dict['spn_steadypro'] = np.array(sv).tolist()
-    results_dict['spn_markdens'] = np.array(mark_dens_list).tolist()
-    results_dict['spn_allmus'] = np.array(mu_mark_nums).tolist()
-    results_dict['spn_mu'] = np.sum(mu_mark_nums)
-    return results_dict,True
 
-def get_spnds3(petri_matrix,labda, place_upper_bound=10, marks_lower_limit = 4, marks_upper_limit=500):
-    v_list, edage_list, arctrans_list, tran_num, bound_flag = ArrGra.get_arr_gra(petri_matrix, place_upper_bound,
-                                                                                 marks_upper_limit)
+def get_spn(petri_matrix, v_list, edage_list, arctrans_list, labda):
     results_dict = {}
-    if bound_flag == False or len(v_list) < marks_lower_limit:
-        return results_dict, False
-    sv,mark_dens_list,mu_mark_nums = generate_sgn_task_given_labda(v_list, edage_list, arctrans_list, labda)
+    sv, mark_dens_list, mu_mark_nums = generate_sgn_task_given_labda(
+        v_list, edage_list, arctrans_list, labda
+    )
     if sv is None:
         return results_dict, False
-
-    if is_connected_graph(petri_matrix) == False:
+    if not is_connected_graph(petri_matrix):
         return results_dict, False
-    mu_sums  = np.sum(mu_mark_nums)
+    results_dict["petri_net"] = convert_data(petri_matrix)
+    results_dict["arr_vlist"] = convert_data(v_list)
+    results_dict["arr_edge"] = convert_data(edage_list)
+    results_dict["arr_tranidx"] = convert_data(arctrans_list)
+    results_dict["spn_labda"] = np.array(labda).tolist()
+    results_dict["spn_steadypro"] = np.array(sv).tolist()
+    results_dict["spn_markdens"] = np.array(mark_dens_list).tolist()
+    results_dict["spn_allmus"] = np.array(mu_mark_nums).tolist()
+    results_dict["spn_mu"] = np.sum(mu_mark_nums)
+    return results_dict, True
+
+
+def get_spnds3(
+    petri_matrix,
+    labda,
+    place_upper_bound=10,
+    marks_lower_limit=4,
+    marks_upper_limit=500,
+):
+    v_list, edage_list, arctrans_list, tran_num, bound_flag = ArrGra.get_arr_gra(
+        petri_matrix, place_upper_bound, marks_upper_limit
+    )
+    results_dict = {}
+    if not bound_flag or len(v_list) < marks_lower_limit:
+        return results_dict, False
+    sv, mark_dens_list, mu_mark_nums = generate_sgn_task_given_labda(
+        v_list, edage_list, arctrans_list, labda
+    )
+    if sv is None:
+        return results_dict, False
+
+    if not is_connected_graph(petri_matrix):
+        return results_dict, False
+    mu_sums = np.sum(mu_mark_nums)
     if mu_sums < -100 and mu_sums > 100:
         return results_dict, False
-    results_dict['petri_net'] = convert_data(petri_matrix)
-    results_dict['arr_vlist'] = convert_data(v_list)
-    results_dict['arr_edge'] = convert_data(edage_list)
-    results_dict['arr_tranidx'] = convert_data(arctrans_list)
-    results_dict['spn_labda'] = np.array(labda).tolist()
-    results_dict['spn_steadypro'] = np.array(sv).tolist()
-    results_dict['spn_markdens'] = np.array(mark_dens_list).tolist()
-    results_dict['spn_allmus'] = np.array(mu_mark_nums).tolist()
-    results_dict['spn_mu'] = np.sum(mu_mark_nums)
-    return results_dict,True
+    results_dict["petri_net"] = convert_data(petri_matrix)
+    results_dict["arr_vlist"] = convert_data(v_list)
+    results_dict["arr_edge"] = convert_data(edage_list)
+    results_dict["arr_tranidx"] = convert_data(arctrans_list)
+    results_dict["spn_labda"] = np.array(labda).tolist()
+    results_dict["spn_steadypro"] = np.array(sv).tolist()
+    results_dict["spn_markdens"] = np.array(mark_dens_list).tolist()
+    results_dict["spn_allmus"] = np.array(mu_mark_nums).tolist()
+    results_dict["spn_mu"] = np.sum(mu_mark_nums)
+    return results_dict, True

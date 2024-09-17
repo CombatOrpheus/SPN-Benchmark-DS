@@ -15,7 +15,7 @@ def rand_generate_petri(place_num, tran_num):
     remain_node = [i + 1 for i in range(place_num + tran_num)]
     petri_matrix = np.zeros((place_num, 2 * tran_num + 1), dtype='int32')
     first_p = choice(range(place_num)) + 1
-    first_t = choice(range(tran_num) + place_num + 1)
+    first_t = choice(range(tran_num)) + place_num + 1
 
     remain_node.remove(first_p)
     remain_node.remove(first_t)
