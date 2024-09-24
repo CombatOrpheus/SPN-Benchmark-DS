@@ -6,6 +6,7 @@
 # @Author  : mingjian
     描述
 """
+
 import torch
 import pickle
 import torch.utils.data
@@ -19,7 +20,10 @@ import dgl
 
 
 ds_idx = 1
-save_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/package_data"%str(ds_idx)
-data_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/preprocessd_data"%str(ds_idx)
+save_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/package_data" % str(
+    ds_idx
+)
+data_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/preprocessd_data" % str(
+    ds_idx
+)
 print(save_root[-12:])
-

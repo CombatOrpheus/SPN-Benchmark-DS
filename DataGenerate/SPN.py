@@ -46,7 +46,9 @@ def avg_mark_nums(vertices, steady_state_probabilities):
         vertex_tokens = np.unique(vertices_array[:, vertex_index])
         for token in vertex_tokens:
             token_index = np.where(unique_tokens == token)[0][0]
-            token_indices_in_vertex = np.where(vertices_array[:, vertex_index] == token)[0]
+            token_indices_in_vertex = np.where(
+                vertices_array[:, vertex_index] == token
+            )[0]
             mark_density_matrix[vertex_index][token_index] = np.sum(
                 steady_state_probabilities[token_indices_in_vertex]
             )

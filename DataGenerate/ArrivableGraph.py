@@ -6,10 +6,12 @@
 # @Author  : mingjian
     描述
 """
+
 import numpy as np
 import numba
 from random import choice
 from .wherevec import wherevec_cython
+
 
 @numba.jit(nopython=True, cache=True)
 def wherevec(vec, matrix):
@@ -25,10 +27,11 @@ def enabled_sets(pre_set, post_set, M):
     enabled_transitions = np.where(np.all(M >= pre_set, axis=0))[0]
 
     # Calculate new markings
-    new_markings = M - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
+    new_markings = (
+        M - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
+    )
 
     return new_markings, enabled_transitions
-
 
 
 def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
@@ -58,9 +61,8 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
     new_list = [counter]
     edage_list = []
     arctrans_list = []
-    C = (rightmatrix - leftmatrix)
+    C = rightmatrix - leftmatrix
     while len(new_list) > 0:
-
         if counter > marks_upper_limit:
             bound_flag = False
             return v_list, edage_list, arctrans_list, tran_num, bound_flag
@@ -86,7 +88,7 @@ def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
                     edage_list.append([new_m, counter])
                 else:
                     edage_list.append([new_m, M_newidx])
-                    
+
                 arctrans_list.append(ent_idx)
             new_list.remove(new_m)
 

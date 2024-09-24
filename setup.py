@@ -4,5 +4,5 @@ import numpy
 
 setup(
     ext_modules=cythonize("DataGenerate/wherevec.pyx"),
-    include_dirs=[numpy.get_include()]
+    include_dirs=[numpy.get_include()],
 )

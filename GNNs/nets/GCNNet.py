@@ -13,15 +13,39 @@ import dgl
 from GNNs.layers.mlp_readout_layer import MLPReadout
 from GNNs.layers.GCNLayers import GCNLayer
 from GNNs.nets.BasicGNNNets import BasicNets
+
+
 class GCNNet(BasicNets):
     def __init__(self, net_params):
-        super(GCNNet,self).__init__(net_params)
-        in_feat_dim = net_params['node_in_dim']
-        self.layers = nn.ModuleList([GCNLayer(in_feat_dim, self.h_dim, F.relu,
-                                                self.dropout, self.graph_norm, self.batch_norm, self.residual)])
-        self.layers.extend([GCNLayer(self.h_dim, self.h_dim, F.relu,
-                                                self.dropout, self.graph_norm, self.batch_norm, self.residual) for _ in
-                                     range(self.n_layers - 1)])
+        super(GCNNet, self).__init__(net_params)
+        in_feat_dim = net_params["node_in_dim"]
+        self.layers = nn.ModuleList(
+            [
+                GCNLayer(
+                    in_feat_dim,
+                    self.h_dim,
+                    F.relu,
+                    self.dropout,
+                    self.graph_norm,
+                    self.batch_norm,
+                    self.residual,
+                )
+            ]
+        )
+        self.layers.extend(
+            [
+                GCNLayer(
+                    self.h_dim,
+                    self.h_dim,
+                    F.relu,
+                    self.dropout,
+                    self.graph_norm,
+                    self.batch_norm,
+                    self.residual,
+                )
+                for _ in range(self.n_layers - 1)
+            ]
+        )
 
         # self.layers.append(MPNN_Layer(self.in_feat_dim, out_dim, F.relu,
         #                             dropout, self.graph_norm, self.batch_norm, self.residual))
@@ -37,17 +61,16 @@ class GCNNet(BasicNets):
         for conv in self.layers:
             h = conv(g, h, snorm_n)
 
-
-        g.ndata['h'] = h
+        g.ndata["h"] = h
 
         if self.readout == "sum":
-            hg = dgl.sum_nodes(g, 'h')
+            hg = dgl.sum_nodes(g, "h")
         elif self.readout == "max":
-            hg = dgl.max_nodes(g, 'h')
+            hg = dgl.max_nodes(g, "h")
         elif self.readout == "mean":
-            hg = dgl.mean_nodes(g, 'h')
+            hg = dgl.mean_nodes(g, "h")
         else:
-            hg = dgl.mean_nodes(g, 'h')  # default readout is mean nodes
+            hg = dgl.mean_nodes(g, "h")  # default readout is mean nodes
 
         return self.MLP_layer(hg)
 

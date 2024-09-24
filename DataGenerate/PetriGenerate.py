@@ -6,6 +6,7 @@
 # @Author  : mingjian
     描述
 """
+
 import numba
 import numpy as np
 from random import choice
@@ -13,7 +14,7 @@ from random import choice
 
 def rand_generate_petri(place_num, tran_num):
     remain_node = [i + 1 for i in range(place_num + tran_num)]
-    petri_matrix = np.zeros((place_num, 2 * tran_num + 1), dtype='int32')
+    petri_matrix = np.zeros((place_num, 2 * tran_num + 1), dtype="int32")
     first_p = choice(range(place_num)) + 1
     first_t = choice(range(tran_num)) + place_num + 1
 
@@ -37,7 +38,7 @@ def rand_generate_petri(place_num, tran_num):
         else:
             p = choice(subp_list)
             t = r_node
-        
+
         if rand_num <= 0.5:
             petri_matrix[p - 1][t - place_num - 1] = 1
         else:
@@ -45,7 +46,6 @@ def rand_generate_petri(place_num, tran_num):
         sub_graph = np.concatenate((sub_graph, [r_node]))
         remain_node.remove(r_node)
 
-    
     rand_num = np.random.randint(0, place_num)
     petri_matrix[rand_num][-1] = 1
 
@@ -74,7 +74,7 @@ def dele_edage(gra_matrix, tran_num):
             rmindex = np.random.choice(itemindex, len(itemindex) - 2)
             gra_matrix[row][rmindex] = 0
 
-    for i in range(2*tran_num):
+    for i in range(2 * tran_num):
         if np.sum(gra_matrix[:, i]) >= 3:
             itemindex = np.argwhere(gra_matrix[:, i] == 1).flatten()
             rmindex = np.random.choice(itemindex, len(itemindex) - 2)
@@ -90,7 +90,7 @@ def add_node(petri_matrix, tran_num):
     rightmatrix = petri_matrix[:, tran_num:-1]
 
     # each column must have a 1
-    for i in range(2*tran_num):
+    for i in range(2 * tran_num):
         if np.sum(petri_matrix[:, i]) < 1:
             rand_idx = np.random.randint(0, len(petri_matrix))
             petri_matrix[rand_idx][i] = 1

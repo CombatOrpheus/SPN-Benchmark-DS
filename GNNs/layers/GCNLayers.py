@@ -6,6 +6,7 @@
 # @Author  : mingjian
     描述
 """
+
 import dgl
 import torch
 from torch import nn
@@ -13,10 +14,21 @@ import dgl.function as fn
 from GNNs.layers.BasicLayers import BasicLayers
 from dgl.nn import GraphConv
 
-class GCNLayer(BasicLayers):
 
-    def __init__(self, in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual=False):
-        super(GCNLayer, self).__init__(in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual)
+class GCNLayer(BasicLayers):
+    def __init__(
+        self,
+        in_dim,
+        out_dim,
+        activation,
+        dropout,
+        graph_norm,
+        batch_norm,
+        residual=False,
+    ):
+        super(GCNLayer, self).__init__(
+            in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual
+        )
         self.conv = GraphConv(in_dim, out_dim)
 
     def forward(self, g, feature, snorm_n):
