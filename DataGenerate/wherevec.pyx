@@ -11,9 +11,8 @@ def wherevec_cython(long[:] vec, long[:, :] matrix):
     ncols = matrix.shape[1]
 
     for i in range(nrows):
-        row_int = matrix[i]
         for j in range(ncols):
-            if row_int[j] != vec[j]:
+            if matrix[i, j] != vec[j]:
                 break
         else:
             return i
