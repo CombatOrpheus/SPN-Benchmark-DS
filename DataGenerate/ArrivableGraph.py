@@ -9,7 +9,6 @@
 
 import numpy as np
 import numba
-from random import choice
 from .wherevec import wherevec_cython
 
 
@@ -21,71 +20,65 @@ def wherevec(vec, matrix):
     return -1
 
 
-def enabled_sets(pre_set, post_set, M):
-    # Find enabled transitions
-    M = np.expand_dims(M, axis=1)
-    enabled_transitions = np.where(np.all(M >= pre_set, axis=0))[0]
+def enabled_sets(pre_set, post_set, markings):
+    """
+    Finds enabled transitions and calculates new markings.
 
-    # Calculate new markings
-    new_markings = (
-        M - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
-    )
+    Args:
+        pre_set: Preset matrix.
+        post_set: Postset matrix.
+        markings: Current markings (M).
 
+    Returns:
+        Tuple containing the array of enabled transitions and the array of new markings.
+    """
+    markings = np.expand_dims(markings, axis=1)  # Add dimension for broadcasting
+    enabled = np.all(markings >= pre_set, axis=0)  # Check if all preconditions are met for each transition
+
+    enabled_transitions = np.where(enabled)[0]
+    new_markings = markings - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
     return new_markings, enabled_transitions
 
 
-def get_arr_gra(petri_matrix, place_upper_limit=10, marks_upper_limit=500):
-    """
-    Obtain the reachable graph of the petri net.
+def get_arr_gra(petri_net_matrix, place_capacity=10, max_markings=500):
+    petri_net_matrix = np.array(petri_net_matrix)
+    num_transitions = petri_net_matrix.shape[1] // 2
 
-    :param
-        petri_matrix: petri net matrix
-        upper_limit: The upper bound of the place in petri net, if > upper_limit : unbound petri , else : bound petri
-    :return:
-        v_list : The set of all vertices of the reachable graph.
-        edage_list : The set of all edges of the reachable graph.
-        arctrans_list : The set of arc transitions of the reachable graph.
-        tran_num : Number of transitions.
-        bound_flag : Whether it is a bounded net. If yes, return True, otherwise False.
-    """
+    pre_transitions = petri_net_matrix[:, 0:num_transitions]
+    post_transitions = petri_net_matrix[:, num_transitions:-1]
+    initial_marking = petri_net_matrix[:, -1]
 
-    petri_matrix = np.array(petri_matrix)
-    bound_flag = True
-    tran_num = petri_matrix.shape[1] // 2
-    leftmatrix = petri_matrix[:, 0:tran_num]
-    rightmatrix = petri_matrix[:, tran_num:-1]
-    M0 = np.array(petri_matrix[:, -1], dtype=int)
-    counter = 0
-    v_list = [M0]
-    new_list = [counter]
-    edge_list = []
-    arctrans_list = []
-    C = rightmatrix - leftmatrix
-    while len(new_list) > 0:
-        new_m = choice(new_list)
-        gra_en_sets, tran_sets = enabled_sets(leftmatrix, rightmatrix, v_list[new_m])
-        if np.any(gra_en_sets > place_upper_limit) or counter > marks_upper_limit:
-            bound_flag = False
-            return v_list, edge_list, arctrans_list, tran_num, bound_flag
+    reachable_markings = {tuple(initial_marking): 0}
+    unvisited_markings = {0}
+    edges = []
+    transitions_taken = []
+    marking_change_matrix = post_transitions - pre_transitions
+    marking_index_counter = 0
 
-        if len(gra_en_sets) == 0:
-            new_list.remove(new_m)
-        else:
-            # Traverse all enable marks
-            for en_m, ent_idx in zip(gra_en_sets, tran_sets):
-                # Calculate the current enable transition, generate a new marking
-                # and save it in M_new.
-                M_new = v_list[new_m] + C[:, ent_idx]
-                M_newidx = wherevec_cython(M_new, np.asarray(v_list))
-                if M_newidx == -1:
-                    counter += 1
-                    v_list.append(M_new)
-                    new_list.append(counter)
-                    edge_list.append([new_m, counter])
-                else:
-                    edge_list.append([new_m, M_newidx])
+    if np.any(initial_marking > place_capacity):
+        return list(reachable_markings.keys()), edges, transitions_taken, num_transitions, False
 
-                arctrans_list.append(ent_idx)
-            new_list.remove(new_m)
+    while unvisited_markings:
+        current_marking_index = unvisited_markings.pop()
+        current_marking = np.array(list(reachable_markings.keys())[current_marking_index])
 
-    return v_list, edge_list, arctrans_list, tran_num, bound_flag
+        enabled_sets_result = enabled_sets(pre_transitions, post_transitions, current_marking)
+
+        if enabled_sets_result[0] is None:
+            continue
+
+        next_markings, enabled_transitions = enabled_sets_result
+
+        if np.any(next_markings > place_capacity) or marking_index_counter > max_markings:
+            return list(reachable_markings.keys()), edges, transitions_taken, num_transitions, False
+
+        for next_marking, transition in zip(next_markings.T, enabled_transitions):
+            next_marking_tuple = tuple(next_marking)
+            if next_marking_tuple not in reachable_markings:
+                marking_index_counter += 1
+                reachable_markings[next_marking_tuple] = marking_index_counter
+                unvisited_markings.add(marking_index_counter)
+            edges.append((current_marking_index, reachable_markings[next_marking_tuple]))
+            transitions_taken.append(transition)
+
+    return list(reachable_markings.keys()), edges, transitions_taken, num_transitions, True
