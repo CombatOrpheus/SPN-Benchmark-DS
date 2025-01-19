@@ -20,20 +20,10 @@ def wherevec(vec, matrix):
     return -1
 
 
-def enabled_sets(pre_set, post_set, markings):
-    """
-    Finds enabled transitions and calculates new markings.
-
-    Args:
-        pre_set: Preset matrix.
-        post_set: Postset matrix.
-        markings: Current markings (M).
-
-    Returns:
-        Tuple containing the array of enabled transitions and the array of new markings.
-    """
+def enabled_sets(pre_set, post_set, markings, scratch):
     markings = np.expand_dims(markings, axis=1)  # Add dimension for broadcasting
-    enabled = np.all(markings >= pre_set, axis=0)  # Check if all preconditions are met for each transition
+    np.greater_equal(markings, pre_set, out=scratch)
+    enabled = np.all(scratch, axis=0)  # Check if all preconditions are met for each transition
 
     enabled_transitions = np.where(enabled)[0]
     new_markings = markings - pre_set[:, enabled_transitions] + post_set[:, enabled_transitions]
@@ -52,17 +42,18 @@ def get_arr_gra(petri_net_matrix, place_capacity=10, max_markings=500):
     unvisited_markings = {0}
     edges = []
     transitions_taken = []
-    marking_change_matrix = post_transitions - pre_transitions
     marking_index_counter = 0
 
     if np.any(initial_marking > place_capacity):
         return list(reachable_markings.keys()), edges, transitions_taken, num_transitions, False
 
+    scratch = np.empty_like(pre_transitions)
+
     while unvisited_markings:
         current_marking_index = unvisited_markings.pop()
         current_marking = np.array(list(reachable_markings.keys())[current_marking_index])
 
-        enabled_sets_result = enabled_sets(pre_transitions, post_transitions, current_marking)
+        enabled_sets_result = enabled_sets(pre_transitions, post_transitions, current_marking, scratch)
 
         if enabled_sets_result[0] is None:
             continue
