@@ -8,16 +8,6 @@
 """
 
 import numpy as np
-import numba
-from .wherevec import wherevec_cython
-
-
-@numba.jit(nopython=True, cache=True)
-def wherevec(vec, matrix):
-    for row in range(len(matrix)):
-        if np.allclose(matrix[row, :], vec):
-            return row
-    return -1
 
 
 def enabled_sets(pre_set, post_set, markings, scratch):

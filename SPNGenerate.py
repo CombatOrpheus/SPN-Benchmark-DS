@@ -33,11 +33,11 @@ def generate_spn(config, write_loc, data_idx):
     while finish == False:
         place_num = np.random.randint(min_place_num, max_place_num + 1)
         tran_num = place_num + np.random.randint(-3, 1)
-        petri_matrix = PeGen.rand_generate_petri(place_num, tran_num)
+        petri_matrix = PeGen.generate_random_petri_net(place_num, tran_num)
         if prune_flag:
-            petri_matrix = PeGen.prune_petri(petri_matrix)
+            petri_matrix = PeGen.prune_petri_net(petri_matrix)
         if add_token:
-            petri_matrix = PeGen.add_token(petri_matrix)
+            petri_matrix = PeGen.add_token_to_random_place(petri_matrix)
         results_dict, finish = SPN.filter_spn(
             petri_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
         )
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     if transformation_flag:
         for data in tqdm(all_data.values(), desc="Data Transform"):
             all_ex_data = DataTransformation.transformation(
-                data["petri_net"],
+                np.array(data["petri_net"]),
                 place_upper_bound,
                 marks_lower_limit,
                 marks_upper_limit,

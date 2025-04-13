@@ -111,7 +111,7 @@ def labda_transformation(petri_dict, labda_num):
     tran_num = (len(petri_net[0]) - 1) // 2
     while len(all_labda_list) < labda_num:
         labda = np.random.randint(1, 11, size=tran_num)
-        results_dict, finish = SPN.get_spn(
+        results_dict, finish = SPN.get_stochastic_petri_net(
             petri_net, arr_vlist, arr_edge, arr_tranidx, labda
         )
         if finish:
