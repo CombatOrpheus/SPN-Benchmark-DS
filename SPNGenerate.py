@@ -10,6 +10,7 @@
 import argparse
 import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -21,28 +22,66 @@ from DataVisualization import Visual
 from utils import DataUtil as DU
 
 
-def generate_spn(config, write_loc, data_idx):
+def generate_spn(config, write_location, data_index):
     place_upper_bound = config["place_upper_bound"]
     marks_lower_limit = config["marks_lower_limit"]
     marks_upper_limit = config["marks_upper_limit"]
     prune_flag = config["prune_flag"]
     add_token = config["add_token"]
-    max_place_num = config["max_place_num"]
-    min_place_num = config["min_place_num"]
-    finish = False
-    while finish == False:
-        place_num = np.random.randint(min_place_num, max_place_num + 1)
-        tran_num = place_num + np.random.randint(-3, 1)
-        petri_matrix = PeGen.generate_random_petri_net(place_num, tran_num)
+    max_place_number = config["max_place_num"]
+    min_place_number = config["min_place_num"]
+    spn_generation_finished = False
+    while not spn_generation_finished:
+        place_number = np.random.randint(min_place_number, max_place_number + 1)
+        transition_number = place_number + np.random.randint(-3, 1)
+        petri_matrix = PeGen.generate_random_petri_net(place_number, transition_number)
         if prune_flag:
             petri_matrix = PeGen.prune_petri_net(petri_matrix)
         if add_token:
             petri_matrix = PeGen.add_token_to_random_place(petri_matrix)
-        results_dict, finish = SPN.filter_spn(
+        results_dict, spn_generation_finished = SPN.filter_spn(
             petri_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
         )
     DU.save_data_to_json(
-        os.path.join(write_loc, "data%s.json" % str(data_idx)), results_dict
+        os.path.join(write_location, "data%s.json" % str(data_index)), results_dict
+    )
+
+
+def augment_single_data(data, place_upper_bound, marks_lower_limit, marks_upper_limit, maxtransform_num):
+    all_extended_data = DataTransformation.transformation(
+        np.array(data["petri_net"]),
+        place_upper_bound,
+        marks_lower_limit,
+        marks_upper_limit,
+    )
+    if len(all_extended_data) >= maxtransform_num:
+        data_range = np.arange(len(all_extended_data))
+        sample_indices = np.random.choice(
+            data_range, maxtransform_num, replace=False
+        )
+    else:
+        sample_indices = np.arange(len(all_extended_data))
+    transformed_data_list = []
+    for selected_index in sample_indices:
+        transformed_data_list.append(all_extended_data[selected_index])
+    return transformed_data_list
+
+
+def visualize_single_data(item):
+    data_index, data, writable_picture_location = item
+    Visual.plot_petri(
+        data["petri_net"],
+        os.path.join(writable_picture_location, f"data(petri){data_index + 1}"),
+    )
+    Visual.plot_spn(
+        data["arr_vlist"],
+        data["arr_edge"],
+        data["arr_tranidx"],
+        data["spn_labda"],
+        data["spn_steadypro"],
+        data["spn_markdens"],
+        data["spn_allmus"],
+        os.path.join(writable_picture_location, f"data(arr){data_index + 1}"),
     )
 
 
@@ -56,77 +95,56 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = DU.load_json(args.config)
     print(config)
-    write_data_loc = config["write_data_loc"]
+    write_data_location = config["write_data_loc"]
     parallel_job = config["parallel_job"]
     place_upper_bound = config["place_upper_bound"]
     marks_lower_limit = config["marks_lower_limit"]
     marks_upper_limit = config["marks_upper_limit"]
-    data_num = config["data_num"]
+    data_number = config["data_num"]
     visual_flag = config["visual_flag"]
-    pic_loc = config["pic_loc"]
+    picture_location = config["pic_loc"]
     transformation_flag = config["transformation_flag"]
-    maxtransform_num = config["maxtransform_num"]
-    DU.mkdir(write_data_loc)
-    tmp_write_dir = os.path.join(write_data_loc, "tmp")
-    w_pic_loc = os.path.join(write_data_loc, pic_loc)
+    maximum_transformation_number = config["maxtransform_num"]
+    DU.mkdir(write_data_location)
+    temporary_write_directory = os.path.join(write_data_location, "tmp")
+    writable_picture_location = os.path.join(write_data_location, picture_location)
 
-    print(tmp_write_dir)
-    DU.mkdir(tmp_write_dir)
-    # Parallel(n_jobs=parallel_job)(delayed(generate_spn)(config, tmp_write_dir, i + 1) for i in trange(data_num))
-    for i in trange(data_num):
-        generate_spn(config, tmp_write_dir, i + 1)
-    all_data = DU.load_alldata_from_json(tmp_write_dir)
-    new_transfo_datas = {}
+    print(temporary_write_directory)
+    DU.mkdir(temporary_write_directory)
+    Parallel(n_jobs=parallel_job, backend="loky")(
+        delayed(generate_spn)(config, temporary_write_directory, i + 1)
+        for i in trange(data_number, desc="Data Generation")
+    )
+    all_data = DU.load_alldata_from_json(temporary_write_directory)
+    new_transformation_datas = {}
     counter = 1
-    print("*" * 30 + "data transformation begin" + "*" * 30)
     if transformation_flag:
-        for data in tqdm(all_data.values(), desc="Data Transform"):
-            all_ex_data = DataTransformation.transformation(
-                np.array(data["petri_net"]),
-                place_upper_bound,
-                marks_lower_limit,
-                marks_upper_limit,
+        augmented_data_list = Parallel(n_jobs=parallel_job, backend="loky")(
+            delayed(augment_single_data)(
+                data, place_upper_bound, marks_lower_limit, marks_upper_limit, maximum_transformation_number
             )
-            # print("transformation num : %s" % str(len(all_ex_data)))
-            if len(all_ex_data) >= maxtransform_num:
-                data_range = np.arange(len(all_ex_data))
-                sample_index = np.random.choice(
-                    data_range, maxtransform_num, replace=False
-                )
-            else:
-                sample_index = np.arange(len(all_ex_data))
-            for se_idx in sample_index:
-                new_transfo_datas["data%s" % str(counter)] = all_ex_data[se_idx]
+            for data in tqdm(all_data.values(), desc="Data Augmentation", total=data_number)
+        )
+        for sublist in augmented_data_list:
+            for data in sublist:
+                new_transformation_datas[f"data{counter}"] = data
                 counter += 1
         print("*" * 30 + "data transformation finish" + "*" * 30)
 
     if transformation_flag:
-        all_data = new_transfo_datas
+        all_data = new_transformation_datas
     print("total data number : %s" % str(len(all_data)))
-    ori_data_loc = "ori_data"
-    DU.mkdir(os.path.join(write_data_loc, ori_data_loc))
+    original_data_location = "ori_data"
+    DU.mkdir(os.path.join(write_data_location, original_data_location))
     DU.save_data_to_json(
-        os.path.join(write_data_loc, ori_data_loc, "all_data.json"), all_data
+        os.path.join(write_data_location, original_data_location, "all_data.json"), all_data
     )
     print(all_data.keys())
 
     if visual_flag:
-        DU.mkdir(w_pic_loc)
-        counter = 1
-        for data in tqdm(all_data.values(), desc="Visual"):
-            Visual.plot_petri(
-                data["petri_net"],
-                os.path.join(w_pic_loc, "data(petri)%s" % str(counter)),
-            )
-            Visual.plot_spn(
-                data["arr_vlist"],
-                data["arr_edge"],
-                data["arr_tranidx"],
-                data["spn_labda"],
-                data["spn_steadypro"],
-                data["spn_markdens"],
-                data["spn_allmus"],
-                os.path.join(w_pic_loc, "data(arr)%s" % str(counter)),
-            )
-            counter += 1
-    shutil.rmtree(tmp_write_dir)
+        DU.mkdir(writable_picture_location)
+        Parallel(n_jobs=parallel_job, backend="loky")(
+            delayed(visualize_single_data)((i, data, writable_picture_location))
+            for i, data in tqdm(enumerate(all_data.values()), desc="Visual", total=len(all_data))
+        )
+    shutil.rmtree(temporary_write_directory)

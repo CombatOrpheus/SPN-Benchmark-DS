@@ -43,12 +43,10 @@ def get_arr_gra(petri_net_matrix, place_capacity=10, max_markings=500):
         current_marking_index = unvisited_markings.pop()
         current_marking = np.array(list(reachable_markings.keys())[current_marking_index])
 
-        enabled_sets_result = enabled_sets(pre_transitions, post_transitions, current_marking, scratch)
+        next_markings, enabled_transitions = enabled_sets(pre_transitions, post_transitions, current_marking, scratch)
 
-        if enabled_sets_result[0] is None:
+        if next_markings is None:
             continue
-
-        next_markings, enabled_transitions = enabled_sets_result
 
         if np.any(next_markings > place_capacity) or marking_index_counter > max_markings:
             return list(reachable_markings.keys()), edges, transitions_taken, num_transitions, False
