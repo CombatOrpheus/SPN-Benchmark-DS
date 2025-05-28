@@ -29,12 +29,10 @@ def load_json(json_loc):
 def load_alldata_from_json(json_loc):
     json_dirs = os.listdir(json_loc)
     json_dirs.sort(key=lambda x: int(x[4:-5]))
-    all_data = {}
     for j_file_idx in range(len(json_dirs)):
         j_file = json_dirs[j_file_idx]
-        data = load_json(os.path.join(json_loc, j_file))
-        all_data["data%s" % str(j_file_idx + 1)] = data
-    return all_data
+        yield load_json(os.path.join(json_loc, j_file))
+
 
 
 def count_json_num(json_loc):
