@@ -8,6 +8,7 @@
 """
 
 import argparse
+import json
 import os
 import shutil
 from pathlib import Path
@@ -49,7 +50,7 @@ def generate_spn(config, write_location, data_index):
 
 def augment_single_data(data, place_upper_bound, marks_lower_limit, marks_upper_limit, maxtransform_num):
     all_extended_data = DataTransformation.transformation(
-        np.array(data["petri_net"]),
+        np.array(data["petri_net"], dtype="long"),
         place_upper_bound,
         marks_lower_limit,
         marks_upper_limit,
@@ -111,35 +112,44 @@ if __name__ == "__main__":
 
     print(temporary_write_directory)
     DU.mkdir(temporary_write_directory)
-    Parallel(n_jobs=parallel_job, backend="loky")(
-        delayed(generate_spn)(config, temporary_write_directory, i + 1)
-        for i in trange(data_number, desc="Data Generation")
-    )
+    # Parallel(n_jobs=parallel_job, backend="loky")(
+    #     delayed(generate_spn)(config, temporary_write_directory, i + 1)
+    #     for i in trange(data_number, desc="Data Generation")
+    # )
+
+    for i in trange(data_number, desc="Data Generation"):
+        generate_spn(config, temporary_write_directory, i + 1)
+
     all_data = DU.load_alldata_from_json(temporary_write_directory)
-    new_transformation_datas = {}
-    counter = 1
+    original_data_location = "ori_data"
+    DU.mkdir(os.path.join(write_data_location, original_data_location))
+    path = os.path.join(write_data_location, original_data_location, "all_data.json")
+
+    transformed_data = {}
+    counter = 0
     if transformation_flag:
-        augmented_data_list = Parallel(n_jobs=parallel_job, backend="loky")(
+        augmented_data_list = Parallel(n_jobs=parallel_job, backend="loky", return_as="generator")(
             delayed(augment_single_data)(
                 data, place_upper_bound, marks_lower_limit, marks_upper_limit, maximum_transformation_number
             )
-            for data in tqdm(all_data.values(), desc="Data Augmentation", total=data_number)
+            for data in tqdm(all_data, desc="Data Augmentation", total=data_number)
         )
-        for sublist in augmented_data_list:
-            for data in sublist:
-                new_transformation_datas[f"data{counter}"] = data
-                counter += 1
-        print("*" * 30 + "data transformation finish" + "*" * 30)
 
-    if transformation_flag:
-        all_data = new_transformation_datas
-    print("total data number : %s" % str(len(all_data)))
-    original_data_location = "ori_data"
-    DU.mkdir(os.path.join(write_data_location, original_data_location))
-    DU.save_data_to_json(
-        os.path.join(write_data_location, original_data_location, "all_data.json"), all_data
-    )
-    print(all_data.keys())
+        with open(path, 'w') as file:
+            for sublist in augmented_data_list:
+                for data in sublist:
+                    json.dump(data, file)
+                    file.write('\n')
+                    counter += 1
+
+    if not transformation_flag:
+        all_data = list(all_data)
+        counter = len(all_data)
+        DU.save_data_to_json(
+            os.path.join(write_data_location, original_data_location, "all_data.json"), all_data
+        )
+
+    print(f"total data number : {counter}")
 
     if visual_flag:
         DU.mkdir(writable_picture_location)
