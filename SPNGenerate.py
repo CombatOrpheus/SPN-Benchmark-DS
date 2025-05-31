@@ -40,7 +40,7 @@ def generate_spn(config, write_location, data_index):
             petri_matrix = PeGen.prune_petri_net(petri_matrix)
         if add_token:
             petri_matrix = PeGen.add_token_to_random_place(petri_matrix)
-        results_dict, spn_generation_finished = SPN.filter_spn(
+        results_dict, spn_generation_finished = SPN.filter_stochastic_petri_net(
             petri_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
         )
     DU.save_data_to_json(
@@ -112,13 +112,13 @@ if __name__ == "__main__":
 
     print(temporary_write_directory)
     DU.mkdir(temporary_write_directory)
-    # Parallel(n_jobs=parallel_job, backend="loky")(
-    #     delayed(generate_spn)(config, temporary_write_directory, i + 1)
-    #     for i in trange(data_number, desc="Data Generation")
-    # )
-
-    for i in trange(data_number, desc="Data Generation"):
-        generate_spn(config, temporary_write_directory, i + 1)
+    Parallel(n_jobs=parallel_job, backend="loky")(
+        delayed(generate_spn)(config, temporary_write_directory, i + 1)
+        for i in trange(data_number, desc="Data Generation")
+    )
+    #
+    # for i in trange(data_number, desc="Data Generation"):
+    #     generate_spn(config, temporary_write_directory, i + 1)
 
     all_data = DU.load_alldata_from_json(temporary_write_directory)
     original_data_location = "ori_data"

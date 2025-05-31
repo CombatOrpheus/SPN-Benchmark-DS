@@ -10,13 +10,14 @@
 from typing import List, Tuple, Dict, Any
 
 import numpy as np
-from numpy.linalg import solve
+from scipy.sparse.linalg import lsmr, lsqr
+from scipy.sparse import csc_array
 
 from DataGenerate import ArrivableGraph as ArrGra
 
 
 def compute_state_equation(vertices: List[Tuple[int, ...]], edges: List[Tuple[int, int]], arc_transitions: List[int],
-                           lambda_values: np.ndarray) -> Tuple[List[List[int]], List[int]]:
+                           lambda_values: np.ndarray):
     """
     Calculates the state equation for the Stochastic Petri Net.
 
@@ -25,9 +26,6 @@ def compute_state_equation(vertices: List[Tuple[int, ...]], edges: List[Tuple[in
         edges (List[Tuple[int, int]]): List of edges representing transitions between states.
         arc_transitions (List[int]): List of transition indices corresponding to each edge.
         lambda_values (np.ndarray): Array of firing rates for each transition.
-
-    Returns:
-        Tuple[List[List[int]], List[int]]: A tuple containing the state matrix and the target vector.
     """
     number_of_vertices = len(vertices)
     augmented_state_matrix = np.zeros((number_of_vertices + 1, number_of_vertices), dtype=int)
@@ -40,15 +38,11 @@ def compute_state_equation(vertices: List[Tuple[int, ...]], edges: List[Tuple[in
         augmented_state_matrix[source_vertex_index, source_vertex_index] -= lambda_values[transition_index]
         augmented_state_matrix[destination_vertex_index, source_vertex_index] += lambda_values[transition_index]
 
-    equation_matrix = []
-    for i in range(number_of_vertices - 1):
-        equation_matrix.append(augmented_state_matrix[i])
-    equation_matrix.append(augmented_state_matrix[-1, :])
+    equation_matrix = np.vstack((augmented_state_matrix[:-2, :], augmented_state_matrix[-1, :]))
 
-    return equation_matrix, target_vector
+    return csc_array(equation_matrix), target_vector
 
 
-# Suggested name: calculate_average_mark_numbers
 def compute_average_mark_numbers(vertices: List[Tuple[int, ...]], steady_state_probabilities: np.ndarray) -> Tuple[
     np.ndarray, List[float]]:
     """
@@ -63,8 +57,6 @@ def compute_average_mark_numbers(vertices: List[Tuple[int, ...]], steady_state_p
     """
     all_markings = np.array(vertices)
     distinct_tokens = np.unique(all_markings)
-    num_places = all_markings.shape[1]
-    num_tokens = len(distinct_tokens)
 
     prob_vector = steady_state_probabilities[:, np.newaxis]  # Reshape to column vector
 
@@ -99,7 +91,7 @@ def generate_stochastic_graphical_net_task(vertices_list: List[Tuple[int, ...]],
     state_matrix, target_vector = compute_state_equation(vertices_list, edges_list, arc_transition_indices, transition_rates)
     steady_state_probabilities = None
     try:
-        steady_state_probabilities = solve(state_matrix, target_vector.T)
+        steady_state_probabilities = lsqr(state_matrix, target_vector.T)[0]
         marking_density_list, average_markings_per_place = compute_average_mark_numbers(vertices_list, steady_state_probabilities)
     except np.linalg.linalg.LinAlgError:
         marking_density_list, average_markings_per_place = None, None
@@ -145,8 +137,7 @@ def is_connected_graph(petri_net_matrix: np.ndarray) -> bool:
     return True
 
 
-# Suggested name: filter_stochastic_petri_net
-def filter_spn(
+def filter_stochastic_petri_net(
         petri_net_matrix: np.ndarray, place_upper_bound: int = 10, marks_lower_limit: int = 4,
         marks_upper_limit: int = 500
 ) -> Tuple[Dict[str, Any], bool]:
@@ -208,7 +199,7 @@ def generate_stochastic_graphical_net_task_with_given_rates(vertices_list: List[
     state_matrix, target_vector = compute_state_equation(vertices_list, edges_list, arc_transition_indices, transition_rates)
     steady_state_probabilities = None
     try:
-        steady_state_probabilities = solve(state_matrix, target_vector.T)
+        steady_state_probabilities = lsqr(state_matrix, target_vector.T)
         marking_density_list, average_markings_per_place = compute_average_mark_numbers(vertices_list, steady_state_probabilities)
     except np.linalg.linalg.LinAlgError:
         marking_density_list, average_markings_per_place = None, None

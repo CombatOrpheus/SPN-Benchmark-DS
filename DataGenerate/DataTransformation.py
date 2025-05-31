@@ -24,7 +24,7 @@ def transformation(
             if petri_matrix[i][j] == 1:
                 da_tp = petri_matrix.copy()
                 da_tp[i][j] = 0
-                results_dict, finish = SPN.filter_spn(
+                results_dict, finish = SPN.filter_stochastic_petri_net(
                     da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
                 )
                 if finish:
@@ -35,7 +35,7 @@ def transformation(
             if petri_matrix[i][j] == 0:
                 da_tp = petri_matrix.copy()
                 da_tp[i][j] = 1
-                results_dict, finish = SPN.filter_spn(
+                results_dict, finish = SPN.filter_stochastic_petri_net(
                     da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
                 )
                 if finish:
@@ -44,7 +44,7 @@ def transformation(
     for i in range(row):
         da_tp = petri_matrix.copy()
         da_tp[i][col - 1] += 1
-        results_dict, finish = SPN.filter_spn(
+        results_dict, finish = SPN.filter_stochastic_petri_net(
             da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
         )
         if finish:
@@ -54,7 +54,7 @@ def transformation(
         da_tp = petri_matrix.copy()
         if np.sum(da_tp[:, -1]) > 1 and da_tp[i][col - 1] >= 1:
             da_tp[i][col - 1] -= 1
-            results_dict, finish = SPN.filter_spn(
+            results_dict, finish = SPN.filter_stochastic_petri_net(
                 da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
             )
             if finish:
@@ -67,7 +67,7 @@ def transformation(
             da_tp = np.row_stack((petri_matrix, row_zero))
             da_tp[-1][i] = 1
             da_tp[-1][k] = 1
-            results_dict, finish = SPN.filter_spn(
+            results_dict, finish = SPN.filter_stochastic_petri_net(
                 da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
             )
             if finish:
@@ -80,7 +80,7 @@ def transformation(
             # la_num = 5
             for i in range(la_num):
                 da_tp = ex["petri_net"]
-                results_dict, finish = SPN.filter_spn(
+                results_dict, finish = SPN.filter_stochastic_petri_net(
                     da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
                 )
                 if finish:
@@ -90,7 +90,7 @@ def transformation(
     # la_num = 5
     for i in range(la_num):
         da_tp = petri_matrix.copy()
-        results_dict, finish = SPN.filter_spn(
+        results_dict, finish = SPN.filter_stochastic_petri_net(
             da_tp, place_upper_bound, marks_lower_limit, marks_upper_limit
         )
         if finish:
