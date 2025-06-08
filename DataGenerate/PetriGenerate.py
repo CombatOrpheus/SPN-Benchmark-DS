@@ -99,17 +99,16 @@ def delete_excess_edges(gra_matrix: np.ndarray, tran_num: int) -> np.ndarray:
     """
     for row in range(len(gra_matrix)):
         if np.sum(gra_matrix[row, 0:-1]) >= 3:
-            itemindex = np.argwhere(gra_matrix[row, 0:-1] == 1).flatten()
-            # print(itemindex)
-            rmindex = np.random.choice(itemindex, len(itemindex) - 2, replace=False)
-            gra_matrix[row][rmindex] = 0
+            item_indices = np.argwhere(gra_matrix[row, 0:-1] == 1).flatten()
+            removal_indices = np.random.choice(item_indices, len(item_indices) - 2, replace=False)
+            gra_matrix[row][removal_indices] = 0
 
     for i in range(2 * tran_num):
         if np.sum(gra_matrix[:, i]) >= 3:
-            itemindex = np.argwhere(gra_matrix[:, i] == 1).flatten()
-            rmindex = np.random.choice(itemindex, len(itemindex) - 2, replace=False)
-            for rmidx in rmindex:
-                gra_matrix[rmidx][i] = 0
+            item_indices = np.argwhere(gra_matrix[:, i] == 1).flatten()
+            removal_indices = np.random.choice(item_indices, len(item_indices) - 2, replace=False)
+            for removal_index in removal_indices:
+                gra_matrix[removal_index][i] = 0
 
     return gra_matrix
 
@@ -125,8 +124,8 @@ def add_necessary_nodes(petri_matrix: np.ndarray, tran_num: int) -> np.ndarray:
     Returns:
         np.ndarray: The Petri net matrix with necessary nodes added.
     """
-    leftmatrix = petri_matrix[:, 0:tran_num]
-    rightmatrix = petri_matrix[:, tran_num:-1]
+    left_matrix = petri_matrix[:, 0:tran_num]
+    right_matrix = petri_matrix[:, tran_num:-1]
 
     # each column must have a 1
     zero_sum_cols = np.where(np.sum(petri_matrix[:, :2 * tran_num], axis=0) < 1)[0]
@@ -134,11 +133,11 @@ def add_necessary_nodes(petri_matrix: np.ndarray, tran_num: int) -> np.ndarray:
     petri_matrix[random_indices_cols, zero_sum_cols] = 1
 
     # Each row must have two elements of 1, the left matrix has 1, and the right must also have 1
-    rows_with_zero_left_sum = np.where(np.sum(leftmatrix, axis=1) < 1)[0]
+    rows_with_zero_left_sum = np.where(np.sum(left_matrix, axis=1) < 1)[0]
     random_indices_left = np.random.randint(0, tran_num, size=len(rows_with_zero_left_sum))
     petri_matrix[rows_with_zero_left_sum, random_indices_left] = 1
 
-    rows_with_zero_right_sum = np.where(np.sum(rightmatrix, axis=1) < 1)[0]
+    rows_with_zero_right_sum = np.where(np.sum(right_matrix, axis=1) < 1)[0]
     random_indices_right = np.random.randint(0, tran_num, size=len(rows_with_zero_right_sum))
     petri_matrix[rows_with_zero_right_sum, random_indices_right + tran_num] = 1
 
