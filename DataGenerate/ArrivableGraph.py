@@ -1,163 +1,128 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-# @File    : ArrivableGraph.py
-# @Date    : 2020-08-22
-# @Author  : mingjian
-    描述: Generates the reachability graph for a given Petri net definition
-          using Breadth-First Search (BFS) and optimized marking lookup.
+@File    : ArrivableGraph.py
+@Date    : 2020-08-22
+@Author  : mingjian
+
+This module provides functions to generate the reachability graph of a
+Stochastic Petri Net (SPN) using a Breadth-First Search (BFS) algorithm.
 """
 
-from collections import deque  # Import deque for efficient BFS queue
+from collections import deque
+from typing import List, Tuple, Dict, Set
 
 import numpy as np
 
 
-def enabled_sets(pre_condition_matrix, change_matrix, current_marking_vector):
+def get_enabled_transitions(
+    pre_condition_matrix: np.ndarray,
+    change_matrix: np.ndarray,
+    current_marking: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Identifies enabled transitions for the current marking and calculates
-    the resulting markings if those transitions fire.
+    Identifies enabled transitions for a given marking and calculates the resulting markings.
 
     Args:
-        pre_condition_matrix: The pre-condition matrix (input arcs).
+        pre_condition_matrix: The pre-condition (input) matrix of the Petri net.
         change_matrix: The change matrix (Post - Pre).
-        current_marking_vector: The current marking (state) of the Petri net.
+        current_marking: The current marking (state) of the Petri net.
 
     Returns:
         A tuple containing:
-            - new_markings: Markings resulting from firing enabled transitions (NxM numpy array).
-            - enabled_transitions: Indices of the enabled transitions (1D numpy array).
+        - The new markings that result from firing each enabled transition.
+        - The indices of the transitions that were enabled.
     """
-    # Ensure current_marking_vector is correctly shaped for broadcasting
-    current_marking_expanded = current_marking_vector[:, np.newaxis] # More idiomatic than np.expand_dims
+    # Use broadcasting to find all transitions that are enabled by the current marking.
+    # A transition is enabled if the marking has enough tokens in all its input places.
+    enabled_mask = np.all(current_marking[:, np.newaxis] >= pre_condition_matrix, axis=0)
+    enabled_transition_indices = np.where(enabled_mask)[0]
 
-    # Find indices of transitions where the current marking satisfies the pre-conditions
-    enabled_transitions = np.where(np.all(current_marking_expanded >= pre_condition_matrix, axis=0))[0]
-
-    if not enabled_transitions.size: # Check if the array is empty
-        # Return empty arrays if no transitions are enabled
+    if enabled_transition_indices.size == 0:
         num_places = pre_condition_matrix.shape[0]
         return np.empty((0, num_places), dtype=int), np.empty((0,), dtype=int)
 
-    # Calculate the markings that result from firing each enabled transition
-    # NewMarking = CurrentMarking + (PostMatrix_enabled - PreMatrix_enabled)
-    #            = CurrentMarking + ChangeMatrix_enabled
-    new_markings_calc = current_marking_expanded + change_matrix[:, enabled_transitions]
+    # Calculate the new markings by adding the change matrix columns for enabled transitions.
+    new_markings = current_marking[:, np.newaxis] + change_matrix[:, enabled_transition_indices]
 
-    # Transpose new_markings to have markings as rows (consistent with v_list)
-    return new_markings_calc.T, enabled_transitions
+    return new_markings.T, enabled_transition_indices
 
 
-def get_arr_gra(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
+def build_reachability_graph(
+    petri_net_matrix: np.ndarray,
+    place_upper_bound: int = 10,
+    max_markings_to_explore: int = 500,
+) -> Tuple[List[np.ndarray], List[List[int]], List[int], int, bool]:
     """
-    Obtain the reachability graph of the petri net using BFS.
+    Builds the reachability graph of a Petri net using Breadth-First Search (BFS).
+
+    The exploration is bounded by the number of markings and the token count in any place
+    to handle potentially unbounded nets.
 
     Args:
-        incidence_matrix_with_initial: Petri net definition including pre-conditions,
-                                       post-conditions, and initial marking. Assumes
-                                       format [pre | post | M0].
-        place_upper_limit: The upper bound for tokens in any single place.
-                           Exceeding this suggests unboundedness.
-        max_markings_to_explore: The maximum number of markings to explore before
-                                 assuming unboundedness.
+        petri_net_matrix: The matrix defining the Petri net [Pre | Post | M0].
+        place_upper_bound: The max number of tokens in any place before considering the net unbounded.
+        max_markings_to_explore: The max number of unique markings to explore.
 
     Returns:
         A tuple containing:
-        - visited_markings_list: The list of unique reachable markings (states).
-        - reachability_edges: List of edges [from_marking_idx, to_marking_idx].
-        - edge_transition_indices: List of transition indices corresponding to each edge.
-        - num_transitions: Number of transitions in the Petri net.
-        - bound_flag: Boolean indicating if the net appears bounded (True) or
-                      unbounded (False) based on the limits.
+        - A list of all unique reachable markings (the states of the graph).
+        - A list of all edges in the graph, represented as [from_index, to_index].
+        - A list of the transition indices that fire for each edge.
+        - The total number of transitions in the net.
+        - A boolean flag indicating if the net was found to be bounded.
     """
-
-    incidence_matrix = np.array(incidence_matrix_with_initial)
-    is_bounded = False  # Assume unbounded initially
-    num_transitions = incidence_matrix.shape[1] // 2
-    pre_matrix = incidence_matrix[:, 0:num_transitions]
-    post_matrix = incidence_matrix[:, num_transitions:-1]
-    initial_marking = np.array(incidence_matrix[:, -1], dtype=int)
-
-    # Pre-calculate the change matrix (Post - Pre)
+    num_transitions = petri_net_matrix.shape[1] // 2
+    pre_matrix = petri_net_matrix[:, :num_transitions]
+    post_matrix = petri_net_matrix[:, num_transitions:-1]
+    initial_marking = petri_net_matrix[:, -1].astype(int)
     change_matrix = post_matrix - pre_matrix
 
-    marking_index_counter = 0
-    visited_markings_list = [initial_marking]  # List to store unique marking arrays
-    # Dictionary maps marking tuples to their index in visited_markings_list for O(1) lookup
-    explored_markings_dict = {tuple(initial_marking): marking_index_counter}
+    # Data structures for BFS
+    visited_markings: List[np.ndarray] = [initial_marking]
+    # Use a dictionary for O(1) lookup of visited markings
+    explored_markings_map: Dict[Tuple[int, ...], int] = {tuple(initial_marking): 0}
+    queue = deque([0])  # Queue stores indices of markings to visit
 
-    # Queue for BFS, storing indices of markings to explore
-    processing_queue = deque([marking_index_counter])
-
-    reachability_edges = []  # List to store edges (from_idx, to_idx)
-    edge_transition_indices = []  # List to store the transition fired for each edge
-
-    while processing_queue:  # Continue while there are markings to explore
-        # Get the next marking index from the front of the queue (BFS)
-        current_marking_index = processing_queue.popleft()
-        current_marking = visited_markings_list[current_marking_index]
-
-        # Check for unboundedness based on explored states limit *before* processing
-        # Note: Place upper limit check happens after generating next markings
-        if marking_index_counter >= max_markings_to_explore:
-            processing_queue.clear()
-            break
-
-        # Find transitions enabled by the current marking and the resulting states
-        enabled_next_markings, enabled_transition_indices_fired = enabled_sets(pre_matrix, change_matrix, current_marking)
-
-        # Check for unboundedness based on token count in *next* potential markings
-        if enabled_next_markings.size > 0 and np.any(enabled_next_markings > place_upper_limit):
-            processing_queue.clear()
-            break
-
-        if len(enabled_next_markings) == 0:
-            # No transitions enabled from this marking, continue to next in queue
-            continue
-
-        # Process each enabled transition and the resulting marking
-        for next_enabled_marking, enabled_transition_index in zip(enabled_next_markings,
-                                                                  enabled_transition_indices_fired):
-            # Convert the resulting marking (numpy array) to a tuple for dict key
-            new_marking_tuple = tuple(next_enabled_marking)
-
-            # Check if this new marking has been visited using the dictionary (fast lookup)
-            if new_marking_tuple not in explored_markings_dict:
-                # New marking found
-                marking_index_counter += 1
-
-                # Check explored count limit again *before* adding
-                if marking_index_counter >= max_markings_to_explore:
-                    is_bounded = False
-                    processing_queue.clear()  # Stop exploration
-                    # Add the edge leading to this discovery, then break inner loop
-                    reachability_edges.append(
-                        [current_marking_index, marking_index_counter])  # Edge leads "out of bounds" conceptually
-                    edge_transition_indices.append(enabled_transition_index)
-                    break  # Exit the inner for loop
-
-                # Store the new marking (array) and its index (dict)
-                visited_markings_list.append(next_enabled_marking)
-                explored_markings_dict[new_marking_tuple] = marking_index_counter
-                # Add the *new* index to the queue for later exploration
-                processing_queue.append(marking_index_counter)
-
-                new_marking_index_to_use = marking_index_counter  # Use the new index for the edge
-                reachability_edges.append([current_marking_index, new_marking_index_to_use])
-
-            else:
-                # Marking already exists, get its index from the dictionary
-                new_marking_existing_index = explored_markings_dict[new_marking_tuple]
-                # Add edge from current marking to the existing marking
-                reachability_edges.append([current_marking_index, new_marking_existing_index])
-
-            # Record the transition that generated this edge/marking
-            edge_transition_indices.append(enabled_transition_index)
-
-        # Check again if the inner loop was broken due to limit
-        if not is_bounded and not processing_queue:
-            break  # Exit the outer while loop as well
-
-    # Loop finished (either fully explored or hit limit)
+    edges: List[List[int]] = []
+    edge_transitions: List[int] = []
     is_bounded = True
-    return visited_markings_list, reachability_edges, edge_transition_indices, num_transitions, is_bounded
+
+    while queue:
+        current_marking_idx = queue.popleft()
+        current_marking = visited_markings[current_marking_idx]
+
+        # Check for unboundedness based on the number of explored states.
+        if len(visited_markings) >= max_markings_to_explore:
+            is_bounded = False
+            break
+
+        # Find all enabled transitions and the markings they lead to.
+        next_markings, fired_transitions = get_enabled_transitions(
+            pre_matrix, change_matrix, current_marking
+        )
+
+        # Check for unboundedness based on the token count in any place.
+        if next_markings.size > 0 and np.any(next_markings > place_upper_bound):
+            is_bounded = False
+            break
+
+        # Process each new marking.
+        for new_marking, transition_idx in zip(next_markings, fired_transitions):
+            new_marking_tuple = tuple(new_marking)
+
+            if new_marking_tuple not in explored_markings_map:
+                # This is a newly discovered marking.
+                new_marking_idx = len(visited_markings)
+                explored_markings_map[new_marking_tuple] = new_marking_idx
+                visited_markings.append(new_marking)
+                queue.append(new_marking_idx)
+                edges.append([current_marking_idx, new_marking_idx])
+            else:
+                # This marking has been seen before.
+                existing_marking_idx = explored_markings_map[new_marking_tuple]
+                edges.append([current_marking_idx, existing_marking_idx])
+
+            edge_transitions.append(transition_idx)
+
+    return visited_markings, edges, edge_transitions, num_transitions, is_bounded

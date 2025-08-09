@@ -1,149 +1,190 @@
-from graphviz import Digraph
-import numpy as np
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+@File    : Visual.py
+@Date    : 2020-09-21
+@Author  : mingjian
+
+This module provides functions to visualize Stochastic Petri Nets (SPNs) and their
+corresponding reachability graphs using the Graphviz library.
+"""
+
 import os
+from typing import List, Dict, Any
+
+import numpy as np
+from graphviz import Digraph
 from joblib import Parallel, delayed
 
 np.set_printoptions(precision=4)
 
 
-def plot_petri(petri_gra, loc):
-    dot = Digraph()
-    data = petri_gra
-    data = np.array(data, dtype=int)
-    # print(data)
+def plot_petri_net(petri_matrix: np.ndarray, output_filepath: str):
+    """
+    Generates a visual representation of a Petri net structure.
 
-    deli_inde = int((data.shape[1] - 1) / 2)
+    Args:
+        petri_matrix: The matrix representation of the Petri net.
+        output_filepath: The path (without extension) to save the output image.
+    """
+    dot = Digraph("PetriNet")
+    petri_matrix = np.array(petri_matrix, dtype=int)
+    num_places, num_cols = petri_matrix.shape
+    num_transitions = (num_cols - 1) // 2
 
-    for i in range(len(data)):
-        # dot.node("P"+str(i+1),"P"+str(i+1))
-        # dot.node("P" + str(i + 1), "●",labelfloat=True)
-        if data[i][-1] >= 1:
-            no_str = "P" + str(i + 1) + "\n"
-            for j in range(data[i][-1]):
-                no_str += "● "
+    # Create nodes for places, showing tokens for the initial marking
+    for i in range(num_places):
+        initial_tokens = petri_matrix[i, -1]
+        place_label = f"P{i+1}"
+        if initial_tokens > 0:
+            token_str = "\\n" + "● " * initial_tokens
+            place_label += token_str
+        dot.node(f"P{i+1}", place_label, shape="circle")
 
-            dot.node("P" + str(i + 1), no_str)
-        else:
-            dot.node("P" + str(i + 1), "P" + str(i + 1) + "\n\n")
+    # Create nodes for transitions
+    for i in range(num_transitions):
+        dot.node(f"t{i+1}", f"t{i+1}", shape="box")
 
-    for i in range(deli_inde):
-        # dot.node("P"+str(i+1),"P"+str(i+1))
-        # dot.node("P" + str(i + 1), "●",labelfloat=True)
-        dot.node("t" + str(i + 1), "t" + str(i + 1) + "", shape="box")
-    for i in range(len(data)):
-        for j in range(deli_inde):
-            if data[i][j] == 1:
-                dot.edge(str("P" + str(i + 1)), str("t" + str(j + 1)))
-    # print(deli_inde)
+    # Create edges based on the pre and post matrices
+    pre_matrix = petri_matrix[:, :num_transitions]
+    post_matrix = petri_matrix[:, num_transitions:-1]
 
-    metrix_right = data[:, deli_inde:-1]
-    # print(metrix_right)
-
-    for i in range(len(metrix_right)):
-        for j in range(metrix_right.shape[1]):
-            if metrix_right[i][j] == 1:
-                dot.edge(str("t" + str(j + 1)), str("P" + str(i + 1)))
+    for i in range(num_places):
+        for j in range(num_transitions):
+            # Arcs from places to transitions
+            if pre_matrix[i, j] == 1:
+                dot.edge(f"P{i+1}", f"t{j+1}")
+            # Arcs from transitions to places
+            if post_matrix[i, j] == 1:
+                dot.edge(f"t{j+1}", f"P{i+1}")
 
     dot.format = "png"
     try:
-        dot.render(loc)
-    except Exception:
-        return
+        dot.render(output_filepath, cleanup=True)
+    except Exception as e:
+        print(f"Error rendering Petri net graph: {e}")
 
 
-def plot_arri_gra(v_list, edage_list, arctrans_list, loc):
-    dot = Digraph()
-    for i in range(len(v_list)):
-        dot.node("M" + str(i + 1), "M" + str(i) + "\n" + str(v_list[i]), shape="box")
-
-    for edage, arctrans in zip(edage_list, arctrans_list):
-        dot.edge(
-            str("M" + str(edage[0] + 1)),
-            str("M" + str(edage[1] + 1)),
-            label=("t" + str(arctrans + 1)),
-        )
-    dot.attr(fontsize="20")
-    dot.format = "png"
-    try:
-        dot.render(loc)
-    except Exception:
-        return
-
-
-def plot_spn(
-    v_list,
-    edage_list,
-    arctrans_list,
-    labda,
-    sv,
-    midubiaoji,
-    mu_biaoji,
-    loc="test-output/test.gv",
+def plot_reachability_graph(
+    markings: List[np.ndarray],
+    edges: List[List[int]],
+    arc_transitions: List[int],
+    output_filepath: str,
 ):
-    dot = Digraph()
-    # print(pangbiao_list)
-    for i in range(len(v_list)):
-        dot.node("M" + str(i + 1), "M" + str(i) + "\n" + str(v_list[i]), shape="box")
+    """
+    Generates a visual representation of a reachability graph.
 
-    for edage, arctrans in zip(edage_list, arctrans_list):
-        at_idx = int(arctrans)
-        # at_idx = int(re.findall(r"\d+\.?\d*", str(arctrans))[0]) - 1
+    Args:
+        markings: A list of reachable markings (states).
+        edges: A list of edges [from_idx, to_idx] between markings.
+        arc_transitions: The transition index corresponding to each edge.
+        output_filepath: The path (without extension) to save the output image.
+    """
+    dot = Digraph("ReachabilityGraph")
+    for i, marking in enumerate(markings):
+        dot.node(f"M{i}", f"M{i}\\n{marking}", shape="box")
+
+    for edge, transition_idx in zip(edges, arc_transitions):
         dot.edge(
-            str("M" + str(edage[0] + 1)),
-            str("M" + str(edage[1] + 1)),
-            label=(str("t%s" % (arctrans + 1)) + " [" + str(labda[at_idx]) + "]"),
+            f"M{edge[0]}", f"M{edge[1]}", label=f"t{transition_idx + 1}"
         )
-
-    dot.attr(
-        label=r"\n Steady State Probability: \n"
-        + str(np.array(sv))
-        + "\n Token Probability Density Function:\n"
-        + str(np.array(midubiaoji))
-        + "\n The Average Number of Tokens in the Place :\n"
-        + str(np.array(mu_biaoji))
-        + "\n Sum of the Average Numbers of Tokens:\n"
-        + str(np.array([np.sum(mu_biaoji)]))
-    )
     dot.attr(fontsize="20")
     dot.format = "png"
-
     try:
-        dot.render(loc)
-    except Exception:
-        return
+        dot.render(output_filepath, cleanup=True)
+    except Exception as e:
+        print(f"Error rendering reachability graph: {e}")
 
 
-def save_i_pic(data, w_pic_loc, counter):
-    plot_petri(
-        data["petri_net"], os.path.join(w_pic_loc, "data(petri)%s" % str(counter))
+def plot_stochastic_petri_net(
+    markings: List[np.ndarray],
+    edges: List[List[int]],
+    arc_transitions: List[int],
+    firing_rates: np.ndarray,
+    steady_state_probs: np.ndarray,
+    marking_densities: np.ndarray,
+    avg_markings: np.ndarray,
+    output_filepath: str,
+):
+    """
+    Visualizes a solved SPN, including its properties.
+
+    Args:
+        markings: List of reachable markings.
+        edges: List of edges in the reachability graph.
+        arc_transitions: Transition for each edge.
+        firing_rates: Firing rate for each transition.
+        steady_state_probs: Steady-state probability for each marking.
+        marking_densities: Token probability density function.
+        avg_markings: Average number of tokens in each place.
+        output_filepath: Path to save the output image.
+    """
+    dot = Digraph("SPN")
+    for i, marking in enumerate(markings):
+        dot.node(f"M{i}", f"M{i}\\n{marking}", shape="box")
+
+    for edge, trans_idx in zip(edges, arc_transitions):
+        rate = firing_rates[trans_idx]
+        dot.edge(f"M{edge[0]}", f"M{edge[1]}", label=f"t{trans_idx+1} [{rate}]")
+
+    # Create a formatted label with SPN properties
+    info_label = (
+        f"\\nSteady State Probability:\\n{np.array2string(steady_state_probs)}\\n\\n"
+        f"Token Probability Density Function:\\n{np.array2string(marking_densities)}\\n\\n"
+        f"Average Number of Tokens in Places:\\n{np.array2string(avg_markings)}\\n\\n"
+        f"Sum of Average Tokens:\\n{np.sum(avg_markings):.4f}"
     )
-    plot_spn(
-        data["arr_vlist"],
-        data["arr_edge"],
-        data["arr_tranidx"],
-        data["spn_labda"],
-        data["spn_steadypro"],
-        data["spn_markdens"],
-        data["spn_allmus"],
-        os.path.join(w_pic_loc, "data(arr)%s" % str(counter)),
-    )
-    os.remove(os.path.join(w_pic_loc, "data(arr)%s" % str(counter)))
-    os.remove(os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
+    dot.attr(label=info_label, fontsize="20")
+    dot.format = "png"
+    try:
+        dot.render(output_filepath, cleanup=True)
+    except Exception as e:
+        print(f"Error rendering SPN graph: {e}")
 
 
-def visual_data(all_data, w_pic_loc, pall_job):
-    Parallel(n_jobs=pall_job)(
-        delayed(save_i_pic)(all_data["data%s" % str(i + 1)], w_pic_loc, i + 1)
-        for i in range(len(all_data))
+def save_spn_visualizations(
+    spn_data: Dict[str, Any], output_directory: str, file_counter: int
+):
+    """
+    Saves visualizations for a single SPN data sample.
+
+    Args:
+        spn_data: A dictionary containing all data for a single SPN.
+        output_directory: The directory to save the images in.
+        file_counter: An integer to create unique filenames.
+    """
+    petri_filepath = os.path.join(output_directory, f"petri_net_{file_counter}")
+    spn_filepath = os.path.join(output_directory, f"spn_graph_{file_counter}")
+
+    plot_petri_net(spn_data["petri_net"], petri_filepath)
+    plot_stochastic_petri_net(
+        spn_data["arr_vlist"],
+        spn_data["arr_edge"],
+        spn_data["arr_tranidx"],
+        spn_data["spn_labda"],
+        spn_data["spn_steadypro"],
+        spn_data["spn_markdens"],
+        spn_data["spn_allmus"],
+        spn_filepath,
     )
-    # counter = 1
-    # for data in all_data.values():
-    #     plot_petri(data['petri_net'], os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
-    #     plot_spn(data['arr_vlist'], data['arr_edge'], data['arr_tranidx'],
-    #                     data['spn_labda'], data['spn_steadypro'], data['spn_markdens'],
-    #                     data['spn_allmus'], os.path.join(w_pic_loc, "data(arr)%s" % str(counter))
-    #                     )
-    #     os.remove(os.path.join(w_pic_loc, "data(arr)%s" % str(counter)))
-    #     os.remove(os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
-    #     counter += 1
-    print("save  pic successful!!")
+
+
+def visualize_dataset_in_parallel(
+    dataset: Dict[str, Any], output_directory: str, num_parallel_jobs: int
+):
+    """
+    Generates and saves visualizations for an entire dataset in parallel.
+
+    Args:
+        dataset: A dictionary where keys are data sample names (e.g., "data1").
+        output_directory: The directory where images will be saved.
+        num_parallel_jobs: The number of parallel jobs to use for rendering.
+    """
+    print(f"Starting visualization of {len(dataset)} samples...")
+    Parallel(n_jobs=num_parallel_jobs)(
+        delayed(save_spn_visualizations)(
+            dataset[f"data{i+1}"], output_directory, i + 1
+        )
+        for i in range(len(dataset))
+    )
+    print("Visualization generation successful!")
