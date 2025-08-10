@@ -60,10 +60,6 @@ def generate_random_petri_net(num_places: int, num_transitions: int) -> np.ndarr
     rand_num = np.random.randint(0, num_places)
     petri_matrix[rand_num][-1] = 1
 
-    rand_nums = np.random.randint(1, 10, np.shape(petri_matrix)) <= 1
-    zero_idxs = petri_matrix == 0
-    petri_matrix[rand_nums & zero_idxs] = 1
-
     return petri_matrix
 
 
