@@ -102,7 +102,8 @@ def augment_single_data_for_hdf5(
         place_upper_bound_aug,
         marks_lower_limit_aug,
         marks_upper_limit_aug,
-        maxtransform_num_aug
+        maxtransform_num_aug,
+        parallel_job_count=1
 ):
     """
     Wrapper for DataTransformation.transformation to be used with joblib.
@@ -113,6 +114,7 @@ def augment_single_data_for_hdf5(
         marks_lower_limit_aug (int): Config param.
         marks_upper_limit_aug (int): Config param.
         maxtransform_num_aug (int): Max number of transformations to keep.
+        parallel_job_count (int): Number of parallel jobs for sub-tasks.
 
     Returns:
         list: A list of augmented sample dictionaries.
@@ -127,6 +129,7 @@ def augment_single_data_for_hdf5(
         place_upper_bound_aug,
         marks_lower_limit_aug,
         marks_upper_limit_aug,
+        parallel_job_count
     )
 
     if not all_extended_data:
@@ -288,13 +291,17 @@ if __name__ == "__main__":
                 hdf5_sample_idx_counter += 1
         else:
             print(f"Starting data augmentation for {len(initial_samples_list)} initial samples...")
+            # Note: The top-level parallelization is for augmenting different SPNs.
+            # We pass the parallel_job count down so that the augmentation of a *single* SPN
+            # can also be parallelized.
             list_of_augmented_sample_lists = Parallel(n_jobs=parallel_job, backend="loky")(
                 delayed(augment_single_data_for_hdf5)(
                     sample_dict,
                     config["place_upper_bound"],
                     config["marks_lower_limit"],
                     config["marks_upper_limit"],
-                    config["maxtransform_num"]
+                    config["maxtransform_num"],
+                    parallel_job  # Pass the job count down
                 )
                 for sample_dict in tqdm(initial_samples_list, desc="Augmenting Samples")
             )

@@ -8,23 +8,23 @@
 """
 
 import numpy as np
+from joblib import Parallel, delayed
 from DataGenerate import SPN
 
 
 def transformation(
-    petri_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
+    petri_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit, parallel_job_count=1
 ):
     """
     Generates variations of a given Petri net to augment the dataset.
     This function has been refactored to be more efficient by avoiding
-    redundant reachability graph calculations.
+    redundant reachability graph calculations and by parallelizing the
+    validation of structural variations.
     """
     base_petri_matrix = np.array(petri_matrix)
 
-    # --- Step 1: Generate a set of unique, valid Petri net structures ---
-    # This list will hold the results of successful structural transformations.
-    # Each item is a dictionary containing the full SPN solution.
-    structural_variations = []
+    # --- Step 1: Generate all candidate Petri net structures ---
+    candidate_matrices = []
 
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
@@ -35,11 +35,7 @@ def transformation(
             if base_petri_matrix[r, c] == 1:
                 modified_matrix = base_petri_matrix.copy()
                 modified_matrix[r, c] = 0
-                res, success = SPN.filter_stochastic_petri_net(
-                    modified_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-                )
-                if success:
-                    structural_variations.append(res)
+                candidate_matrices.append(modified_matrix)
 
     # Transformation 2: Add an edge
     for r in range(num_places):
@@ -47,21 +43,13 @@ def transformation(
             if base_petri_matrix[r, c] == 0:
                 modified_matrix = base_petri_matrix.copy()
                 modified_matrix[r, c] = 1
-                res, success = SPN.filter_stochastic_petri_net(
-                    modified_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-                )
-                if success:
-                    structural_variations.append(res)
+                candidate_matrices.append(modified_matrix)
 
     # Transformation 3: Add a token
     for r in range(num_places):
         modified_matrix = base_petri_matrix.copy()
         modified_matrix[r, num_cols - 1] += 1
-        res, success = SPN.filter_stochastic_petri_net(
-            modified_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-        )
-        if success:
-            structural_variations.append(res)
+        candidate_matrices.append(modified_matrix)
 
     # Transformation 4: Delete a token
     if np.sum(base_petri_matrix[:, -1]) > 1:
@@ -69,43 +57,34 @@ def transformation(
             if base_petri_matrix[r, num_cols - 1] >= 1:
                 modified_matrix = base_petri_matrix.copy()
                 modified_matrix[r, num_cols - 1] -= 1
-                res, success = SPN.filter_stochastic_petri_net(
-                    modified_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-                )
-                if success:
-                    structural_variations.append(res)
+                candidate_matrices.append(modified_matrix)
 
-    # Transformation 5: Add a place (This is a complex transformation, keeping it simple)
-    # The original implementation was very complex and likely inefficient.
-    # A simpler version could be to add a place and connect it to one existing transition.
+    # Transformation 5: Add a place
     if num_transitions > 0:
         new_place_row = np.zeros((1, num_cols), dtype=int)
-        # Connect the new place to a random transition
         t_idx_to_connect = np.random.randint(0, num_transitions * 2)
         new_place_row[0, t_idx_to_connect] = 1
-
         modified_matrix = np.vstack([base_petri_matrix, new_place_row])
-        res, success = SPN.filter_stochastic_petri_net(
-            modified_matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-        )
-        if success:
-            structural_variations.append(res)
+        candidate_matrices.append(modified_matrix)
 
+    # --- Step 2: Filter the candidates in parallel ---
+    results = Parallel(n_jobs=parallel_job_count)(
+        delayed(SPN.filter_stochastic_petri_net)(
+            matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
+        ) for matrix in candidate_matrices
+    )
 
-    # --- Step 2: Generate more samples by varying firing rates for each valid structure ---
-    # This is much more efficient as it reuses the expensive-to-compute reachability graph.
+    # Collect successful transformations
+    structural_variations = [res for res, success in results if success]
 
+    # --- Step 3: Generate more samples by varying firing rates for each valid structure ---
     all_augmented_data = []
-    # Add the initial successful transformations to the final list
     all_augmented_data.extend(structural_variations)
 
-    # For each valid structure we found, generate a few more samples with different firing rates.
-    num_rate_variations_per_structure = 5  # Can be adjusted
+    num_rate_variations_per_structure = 5
 
     for base_variation in structural_variations:
-        # Extract the reachability graph and structure info
         p_net = base_variation["petri_net"]
-        # The v_list needs to be a list of arrays for the solver function
         v_list = [v for v in base_variation["arr_vlist"]]
         e_list = base_variation["arr_edge"].tolist()
         t_indices = base_variation["arr_tranidx"].tolist()
@@ -113,17 +92,16 @@ def transformation(
 
         if num_trans == 0: continue
 
+        # This part can also be parallelized, but the overhead might be larger than the benefit
+        # for small numbers of variations. Keeping it sequential for now.
         for _ in range(num_rate_variations_per_structure):
-            # Generate new random firing rates
             new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
 
-            # Re-solve the SPN with the new rates, reusing the graph
             s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_graphical_net_task_with_given_rates(
                 v_list, e_list, t_indices, new_rates
             )
 
             if success:
-                # If successful, assemble the new results dictionary
                 new_result = {
                     "petri_net": p_net,
                     "arr_vlist": base_variation["arr_vlist"],
