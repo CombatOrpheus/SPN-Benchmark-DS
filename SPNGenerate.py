@@ -5,6 +5,22 @@
 # @Date    : 2020-08-23 (modified for HDF5 output)
 # @Author  : mingjian
     描述: Generates Stochastic Petri Net (SPN) datasets and saves them to HDF5.
+
+This script generates Stochastic Petri Net (SPN) datasets based on a set of parameters.
+The parameters can be provided via a JSON configuration file, command-line arguments, or a combination of both.
+Command-line arguments will override the values from the configuration file.
+
+To run the script, you can use the following command:
+`python SPNGenerate.py --config /path/to/your/config.json --data-num 100 --output-file my_dataset.hdf5`
+
+If you want to override specific parameters from the config file, you can do so:
+`python SPNGenerate.py --config /path/to/your/config.json --data-num 500`
+
+You can also run the script without a config file, relying on default values and command-line arguments:
+`python SPNGenerate.py --data-num 100 --max-place-num 10`
+
+For more information on the available arguments, run:
+`python SPNGenerate.py --help`
 """
 
 import argparse
@@ -39,11 +55,13 @@ def generate_spn_for_hdf5(config_params):
         dict or None: A dictionary containing the SPN data if generation is successful,
                       None if generation fails in a recoverable way.
     """
+    # Fallback to default values if not provided in config
+    prune_flag_cfg = config_params.get("prune_flag", False)
+    add_token_cfg = config_params.get("add_token", False)
+
     place_upper_bound_cfg = config_params["place_upper_bound"]
     marks_lower_limit_cfg = config_params["marks_lower_limit"]
     marks_upper_limit_cfg = config_params["marks_upper_limit"]
-    prune_flag_cfg = config_params["prune_flag"]
-    add_token_cfg = config_params["add_token"]
     max_place_number_cfg = config_params["max_place_num"]
     min_place_number_cfg = config_params["min_place_num"]
 
@@ -166,38 +184,84 @@ def write_sample_to_hdf5_group(h5_group, sample_dict, compression_filter="gzip",
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config",
-        help="Please give a config.json file ",
-        default="config/DataConfig/SPNGenerate.json",
-    )
-    args = parser.parse_args()
-    config = DU.load_json(args.config)
-    print("Configuration loaded:", config)
+    parser = argparse.ArgumentParser(description="Generate Stochastic Petri Net (SPN) datasets.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+    # Configuration file
+    parser.add_argument("--config", type=str, default="config/DataConfig/SPNGenerate.json", help="Path to the configuration JSON file.")
+
+    # Generation parameters
+    parser.add_argument("--write_data_loc", type=str, default=None, help="Directory to save the generated data.")
+    parser.add_argument("--output_file", type=str, default=None, help="Name of the output HDF5 file.")
+    parser.add_argument("--data_num", type=int, default=None, help="Number of data samples to generate.")
+    parser.add_argument("--parallel_job", type=int, default=None, help="Number of parallel jobs to run.")
+
+    # SPN structure parameters
+    parser.add_argument("--min_place_num", type=int, default=None, help="Minimum number of places.")
+    parser.add_argument("--max_place_num", type=int, default=None, help="Maximum number of places.")
+    parser.add_argument("--place_upper_bound", type=int, default=None, help="Upper bound for places in the SPN.")
+    parser.add_argument("--marks_lower_limit", type=int, default=None, help="Lower limit for markings.")
+    parser.add_argument("--marks_upper_limit", type=int, default=None, help="Upper limit for markings.")
+
+    # Boolean flags for generation process
+    parser.add_argument("--prune_flag", action='store_true', default=None, help="Enable pruning of the Petri net.")
+    parser.add_argument("--add_token", action='store_true', default=None, help="Enable adding a token to a random place.")
+
+    # Transformation parameters
+    parser.add_argument("--transformation_flag", action='store_true', default=None, help="Enable data augmentation/transformation.")
+    parser.add_argument("--maxtransform_num", type=int, default=None, help="Maximum number of transformations to keep.")
+
+    # Visualization parameters
+    parser.add_argument("--visual_flag", action='store_true', default=None, help="Enable generation of visualizations.")
+    parser.add_argument("--pic_loc", type=str, default=None, help="Location to save pictures if visualization is enabled.")
+
+    args = parser.parse_args()
+
+    # Load configuration from JSON file
+    config = {}
+    if os.path.exists(args.config):
+        config = DU.load_json(args.config)
+        print(f"Loaded configuration from {args.config}")
+    else:
+        print(f"Warning: Config file '{args.config}' not found. Using defaults and command-line arguments.")
+
+    # Override config with command-line arguments
+    cli_args = vars(args)
+    # Store booleans flags that are explicitly set
+    true_flags = {key for key, value in cli_args.items() if value is True}
+
+    for key, value in cli_args.items():
+        if key == 'config' or value is None:
+            continue
+        config[key] = value
+
+    # Ensure boolean flags from CLI are correctly handled
+    for flag in ['prune_flag', 'add_token', 'transformation_flag', 'visual_flag']:
+        if cli_args[flag] is not None:
+             config[flag] = cli_args[flag]
+
+    print("Final configuration:", json.dumps(config, indent=4))
+
+    # Extract variables from the final config
     write_data_location = config["write_data_loc"]
     parallel_job = config["parallel_job"]
-    place_upper_bound = config["place_upper_bound"]
-    marks_lower_limit = config["marks_lower_limit"]
-    marks_upper_limit = config["marks_upper_limit"]
     data_number = config["data_num"]
-    visual_flag = config["visual_flag"]
-    picture_location = config["pic_loc"]
-    transformation_flag = config["transformation_flag"]
-    maximum_transformation_number = config["maxtransform_num"]
+    transformation_flag = config.get("transformation_flag", False)
 
+    # Handle output file path
+    output_filename = config.get("output_file", "spn_dataset.hdf5")
     original_data_location_name = "data_hdf5"
-    hdf5_file_path = os.path.join(write_data_location, original_data_location_name, "spn_dataset.hdf5")
+    output_dir = os.path.join(write_data_location, original_data_location_name)
+    hdf5_file_path = os.path.join(output_dir, output_filename)
 
-    DU.mkdir(os.path.join(write_data_location, original_data_location_name))
+    DU.mkdir(output_dir)
 
     print(f"Output HDF5 file will be: {hdf5_file_path}")
 
     with h5py.File(hdf5_file_path, 'w') as hf:
         print(f"HDF5 file '{hdf5_file_path}' opened for writing.")
         try:
-            config_str = json.dumps(config)
+            config_to_save = {k: v for k, v in config.items() if k != 'config'}
+            config_str = json.dumps(config_to_save)
             hf.attrs['generation_config'] = config_str
         except TypeError as e:
             print(f"Warning: Could not serialize full config to JSON for HDF5 attributes. Error: {e}")
@@ -224,14 +288,13 @@ if __name__ == "__main__":
                 hdf5_sample_idx_counter += 1
         else:
             print(f"Starting data augmentation for {len(initial_samples_list)} initial samples...")
-
             list_of_augmented_sample_lists = Parallel(n_jobs=parallel_job, backend="loky")(
                 delayed(augment_single_data_for_hdf5)(
                     sample_dict,
-                    place_upper_bound,
-                    marks_lower_limit,
-                    marks_upper_limit,
-                    maximum_transformation_number
+                    config["place_upper_bound"],
+                    config["marks_lower_limit"],
+                    config["marks_upper_limit"],
+                    config["maxtransform_num"]
                 )
                 for sample_dict in tqdm(initial_samples_list, desc="Augmenting Samples")
             )
