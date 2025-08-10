@@ -1,0 +1,48 @@
+[project]
+name = "SPN-Benchmarks"
+version = "0.1.0"
+description = "A project for generating and benchmarking Stochastic Petri Nets."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" } # Assuming a license file exists or will be created.
+
+dependencies = [
+    # Core scientific and data handling packages
+    "numpy",
+    "scipy",
+    "h5py",
+    "joblib",
+
+    # Deep learning and GNN packages
+    "torch",
+    "torchvision",
+    "dgl",
+    "torch-scatter",
+
+    # Utilities
+    "tqdm",
+    "graphviz",
+    "tensorboard",
+    "tensorboardX",
+    "scikit-learn",
+    "jsonpickle",
+    "jsonschema",
+
+    # Excel file handling
+    "xlrd",
+    "xlwt",
+    "xlutils",
+
+    # Build-time dependency
+    "Cython",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
