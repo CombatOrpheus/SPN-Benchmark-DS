@@ -248,6 +248,50 @@ We save the data as a json file. There are two forms of data, including: the unp
 
 **label**: The labels.
 
+### 1.4 HDF5 Data Generation and Usage
+
+In addition to the JSON format, this project includes functionality to generate and read data in the HDF5 format. HDF5 offers efficient, compressed storage, which is ideal for large datasets.
+
+#### Generating HDF5 Datasets
+
+The `SPNGenerate.py` script can be used to generate datasets in the HDF5 format. The script is controlled by a configuration file, `config/DataConfig/SPNGenerate.json`.
+
+To generate a dataset, you can run the following command:
+```bash
+python SPNGenerate.py --config /path/to/your/config.json
+```
+This will create an HDF5 file named `spn_dataset.hdf5` in the location specified in the configuration file. The data is stored with `gzip` compression to ensure space efficiency.
+
+#### Reading HDF5 Datasets
+
+A utility module, `utils.HDF5Reader`, is provided to easily read the generated HDF5 files. The `SPNDataReader` class in this module allows you to access samples by index and iterate through the entire dataset.
+
+Here is a simple example of how to use the `SPNDataReader`:
+
+```python
+from utils.HDF5Reader import SPNDataReader
+
+# Path to your HDF5 file
+hdf5_path = "path/to/your/spn_dataset.hdf5"
+
+# Use the reader as a context manager
+with SPNDataReader(hdf5_path) as reader:
+    # Get the total number of samples
+    num_samples = len(reader)
+    print(f"Total samples: {num_samples}")
+
+    # Get a specific sample by index
+    if num_samples > 0:
+        sample = reader.get_sample(0)
+        print("First sample keys:", sample.keys())
+
+    # Iterate through all samples
+    for i, sample in enumerate(reader):
+        print(f"Processing sample {i}...")
+        # Your processing logic here
+        if i >= 4: # Stop after 5 samples for this example
+            break
+```
 
 
 ## 2. Run code
