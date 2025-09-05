@@ -1,0 +1,45 @@
+{
+    "Number of samples": 30000,
+    "Number of places": {
+        "mean": 10.642866666666666,
+        "std": 3.0282870486281332,
+        "min": 5,
+        "max": 15
+    },
+    "Number of transitions": {
+        "mean": 9.293066666666666,
+        "std": 3.108372338629263,
+        "min": 2,
+        "max": 15
+    },
+    "Number of reachable markings": {
+        "mean": 37.15603333333333,
+        "std": 18.390276967251534,
+        "min": 4,
+        "max": 50
+    },
+    "Firing rates": {
+        "mean": 5.512970243048581,
+        "std": 2.863545861741492,
+        "min": 1.0,
+        "max": 10.0
+    },
+    "Steady-state probabilities": {
+        "mean": 0.026913529521001973,
+        "std": 0.07627452492669858,
+        "min": 0.0,
+        "max": 1.0
+    },
+    "Average tokens per place": {
+        "mean": 0.7386926901324242,
+        "std": 1.0316682393776713,
+        "min": 0.0,
+        "max": 10.0
+    },
+    "Total average tokens": {
+        "mean": 7.861807808720705,
+        "std": 3.114177256666617,
+        "min": 0.9999999999999999,
+        "max": 32.99999999999999
+    }
+}

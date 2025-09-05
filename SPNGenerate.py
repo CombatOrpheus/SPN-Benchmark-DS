@@ -188,11 +188,13 @@ if __name__ == "__main__":
     maximum_transformation_number = config["maxtransform_num"]
 
     original_data_location_name = "data_hdf5"
-    hdf5_file_path = os.path.join(write_data_location, original_data_location_name, "spn_dataset.hdf5")
-
-    DU.mkdir(os.path.join(write_data_location, original_data_location_name))
+    hdf5_dir = os.path.join(write_data_location, original_data_location_name)
+    print(f"Creating directory: {hdf5_dir}")
+    DU.mkdir(hdf5_dir)
+    hdf5_file_path = os.path.join(hdf5_dir, "spn_dataset.hdf5")
 
     print(f"Output HDF5 file will be: {hdf5_file_path}")
+    print(f"Current working directory: {os.getcwd()}")
 
     with h5py.File(hdf5_file_path, 'w') as hf:
         print(f"HDF5 file '{hdf5_file_path}' opened for writing.")
