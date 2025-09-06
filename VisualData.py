@@ -1,32 +1,60 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-# @File    : VisualData.py
-# @Date    : 2020-08-30
-# @Author  : mingjian
-    描述
+This script generates visualizations for a given dataset.
+It creates visual representations of the Petri nets and their corresponding
+Stochastic Petri Nets (SPNs) for both the training and testing sets.
 """
 
+import os
 from DataVisualization import Visual
 from utils import DataUtil as DU
-import os
-
-dstype = "RandData"
-ds = "DS1"
-para_job = -1
-# data_loc = "/home/mingjian/Dataset/SGN/paperdataset/0813/%s/ori_data/"%ds
-# save_pic_loc = "/home/mingjian/Dataset/SGN/paperdataset/0813/all_pic/%s"%ds
-data_loc = "Data/%s/%s/ori_data/" % (dstype, ds)
-save_pic_loc = "Pics/%s/%s/" % (dstype, ds)
 
 
-train_pic_loc = os.path.join(save_pic_loc, "train_pic")
-test_pic_loc = os.path.join(save_pic_loc, "test_pic")
-DU.mkdir(save_pic_loc)
-all_train_data = DU.load_json(os.path.join(data_loc, "train_data.json"))
-all_test_data = DU.load_json(os.path.join(data_loc, "test_data.json"))
+def visualize_dataset(dataset_type, dataset_name, num_parallel_jobs=-1):
+    """Generates and saves visualizations for a dataset.
 
-DU.mkdir(train_pic_loc)
-DU.mkdir(test_pic_loc)
-Visual.visual_data(all_train_data, train_pic_loc, para_job)
-Visual.visual_data(all_test_data, test_pic_loc, para_job)
+    Args:
+        dataset_type (str): The type of the dataset (e.g., "RandData", "GridData").
+        dataset_name (str): The name of the dataset (e.g., "DS1").
+        num_parallel_jobs (int, optional): The number of parallel jobs to use
+            for visualization. Defaults to -1 (using all available cores).
+    """
+    data_dir = f"Data/{dataset_type}/{dataset_name}/ori_data/"
+    pictures_dir = f"Pics/{dataset_type}/{dataset_name}/"
+
+    train_pics_dir = os.path.join(pictures_dir, "train_pics")
+    test_pics_dir = os.path.join(pictures_dir, "test_pics")
+
+    DU.create_directory(pictures_dir)
+    DU.create_directory(train_pics_dir)
+    DU.create_directory(test_pics_dir)
+
+    train_data_path = os.path.join(data_dir, "train_data.json")
+    test_data_path = os.path.join(data_dir, "test_data.json")
+
+    if not os.path.exists(train_data_path) or not os.path.exists(test_data_path):
+        print(f"Data not found for {dataset_type}/{dataset_name}. Skipping visualization.")
+        return
+
+    train_data = DU.load_json_file(train_data_path)
+    test_data = DU.load_json_file(test_data_path)
+
+    print(f"Visualizing training data for {dataset_name}...")
+    Visual.visualize_dataset(train_data, train_pics_dir, num_parallel_jobs)
+
+    print(f"Visualizing testing data for {dataset_name}...")
+    Visual.visualize_dataset(test_data, test_pics_dir, num_parallel_jobs)
+
+    print("Visualization complete.")
+
+
+def main():
+    """Main function to run the visualization script."""
+    dataset_type = "RandData"
+    dataset_name = "DS1"
+    num_parallel_jobs = -1  # Use all available CPU cores
+
+    visualize_dataset(dataset_type, dataset_name, num_parallel_jobs)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,253 +1,316 @@
-import numpy as np
-# import os
-# import sys
-# sys.path.append('../')
-
 import json
-from sklearn.model_selection import train_test_split
 import os
+from sklearn.model_selection import train_test_split
+import numpy as np
 
 
-def mkdir(path):
-    folder = os.path.exists(path)
-    if not folder:  # 判断是否存在文件夹如果不存在则创建为文件夹
-        os.makedirs(path)  # makedirs 创建文件时如果路径不存在会创建这个路径
-        print("dir is created successful")
+def create_directory(path):
+    """Creates a directory if it does not already exist.
+
+    Args:
+        path (str): The path of the directory to create.
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f"Directory created: {path}")
 
 
-def load_data(data_loc):
-    data = np.loadtxt(data_loc, delimiter=",")
-    return data
+def load_data_from_txt(file_path):
+    """Loads data from a comma-separated text file.
+
+    Args:
+        file_path (str): The path to the text file.
+
+    Returns:
+        numpy.ndarray: The data loaded from the text file.
+    """
+    return np.loadtxt(file_path, delimiter=",")
 
 
-def load_json(json_loc):
-    with open(json_loc) as f:
-        config = json.load(f)
-    return config
+def load_json_file(file_path):
+    """Loads data from a JSON file.
+
+    Args:
+        file_path (str): The path to the JSON file.
+
+    Returns:
+        dict: The data loaded from the JSON file.
+    """
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 
-def load_alldata_from_json(json_loc):
-    json_dirs = os.listdir(json_loc)
-    json_dirs.sort(key=lambda x: int(x[4:-5]))
-    for j_file_idx in range(len(json_dirs)):
-        j_file = json_dirs[j_file_idx]
-        yield load_json(os.path.join(json_loc, j_file))
+def load_all_data_from_json_directory(directory_path):
+    """Loads all JSON files from a directory and yields them one by one.
+
+    Args:
+        directory_path (str): The path to the directory containing the JSON files.
+
+    Yields:
+        dict: The data loaded from each JSON file.
+    """
+    json_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-5]))
+    for json_file in json_files:
+        yield load_json_file(os.path.join(directory_path, json_file))
 
 
+def count_json_files(directory_path):
+    """Counts the number of JSON files in a directory.
 
-def count_json_num(json_loc):
-    json_dirs = os.listdir(json_loc)
-    json_dirs.sort(key=lambda x: int(x[4:-5]))
-    return len(json_dirs), json_dirs
+    Args:
+        directory_path (str): The path to the directory.
+
+    Returns:
+        tuple: A tuple containing the number of JSON files and a list of their names.
+    """
+    json_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-5]))
+    return len(json_files), json_files
 
 
-def load_alldata_from_txt(txt_loc):
-    txt_dirs = os.listdir(txt_loc)
-    txt_dirs.sort(key=lambda x: int(x[4:-4]))
+def load_all_data_from_txt_directory(directory_path):
+    """Loads all text files from a directory into a list.
+
+    Args:
+        directory_path (str): The path to the directory containing the text files.
+
+    Returns:
+        list: A list of numpy.ndarray, each containing the data from a text file.
+    """
+    txt_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-4]))
     all_data = []
-    for t_file_idx in range(len(txt_dirs)):
-        data = load_data(os.path.join(txt_loc, txt_dirs[t_file_idx]))
+    for txt_file in txt_files:
+        data = load_data_from_txt(os.path.join(directory_path, txt_file))
         all_data.append(data)
     return all_data
 
 
-def write_data(data_loc, data):
-    np.savetxt(data_loc, data, fmt="%.0f", delimiter=",")
+def write_data_to_txt(file_path, data):
+    """Writes data to a comma-separated text file.
+
+    Args:
+        file_path (str): The path to the text file.
+        data (numpy.ndarray): The data to write.
+    """
+    np.savetxt(file_path, data, fmt="%.0f", delimiter=",")
 
 
-def red_all_txt(dir):
-    filenames = os.listdir(dir)
-    # filenames.sort()
-    filenames.sort(key=lambda x: int(x[4:]))
-    # print(filenames)
-    all_txt = []
-    for di in filenames:
-        dir_txts = os.listdir(dir + di)
-        dir_txts.sort(key=lambda x: int(x[4:-4]))
-        # print(dir_txts)
-        alldir_txt = [dir + di + "/" + i for i in dir_txts]
-        # print(alldir_txt)
-        all_txt.extend(alldir_txt)
-    # print(all_txt)
-    # print(len(all_txt))
-    return all_txt
+def get_all_txt_files_in_subdirectories(directory_path):
+    """Gets a list of all text files in the subdirectories of a given directory.
+
+    Args:
+        directory_path (str): The path to the main directory.
+
+    Returns:
+        list: A list of full paths to all text files.
+    """
+    subdirectories = sorted(os.listdir(directory_path), key=lambda x: int(x[4:]))
+    all_txt_files = []
+    for subdir in subdirectories:
+        subdir_path = os.path.join(directory_path, subdir)
+        txt_files = sorted(os.listdir(subdir_path), key=lambda x: int(x[4:-4]))
+        full_paths = [os.path.join(subdir_path, f) for f in txt_files]
+        all_txt_files.extend(full_paths)
+    return all_txt_files
 
 
-def load_arr_gra(arr_loc, arr_i):
-    # print(arr_loc+ "pb_data%d.txt"%arr_i)
-    pb = load_data(arr_loc + "pb_data%d.txt" % arr_i).astype(int)
+def load_arrivable_graph_data(directory_path, index):
+    """Loads the data for an arrivable graph.
 
-    node = load_data(arr_loc + "node_data%d.txt" % arr_i).astype(int)
-    hu = load_data(arr_loc + "hu_data%d.txt" % arr_i).astype(int)
-    tran_num = load_data(arr_loc + "tran_data%d.txt" % arr_i).astype(int)
+    Args:
+        directory_path (str): The path to the directory containing the graph data.
+        index (int): The index of the graph data to load.
 
-    return node, hu, pb, tran_num
+    Returns:
+        tuple: A tuple containing the node data, hu data, pb data, and transition number.
+    """
+    pb_data = load_data_from_txt(os.path.join(directory_path, f"pb_data{index}.txt")).astype(int)
+    node_data = load_data_from_txt(os.path.join(directory_path, f"node_data{index}.txt")).astype(int)
+    hu_data = load_data_from_txt(os.path.join(directory_path, f"hu_data{index}.txt")).astype(int)
+    tran_num = load_data_from_txt(os.path.join(directory_path, f"tran_data{index}.txt")).astype(int)
+    return node_data, hu_data, pb_data, tran_num
 
 
-def save_data_to_json(outfile, data):
-    with open(outfile, "w") as f:
+def save_data_to_json_file(file_path, data):
+    """Saves data to a JSON file.
+
+    Args:
+        file_path (str): The path to the JSON file.
+        data (dict): The data to save.
+    """
+    with open(file_path, "w") as f:
         json.dump(data, f)
 
 
-def load_all_txt(dir):
-    dir_txts = os.listdir(dir)
-    dir_txts.sort(key=lambda x: int(x[4:-4]))
+def get_all_txt_files_in_directory(directory_path):
+    """Gets a list of all text files in a directory.
 
-    return dir_txts
+    Args:
+        directory_path (str): The path to the directory.
+
+    Returns:
+        list: A list of text file names.
+    """
+    return sorted(os.listdir(directory_path), key=lambda x: int(x[4:-4]))
 
 
-def addpre_to_dict(node_f_num, key, value, pre_dict):
-    arr_dict = {}
-    n_unit = []
+def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
+    """Adds preprocessed data to a dictionary.
+
+    Args:
+        node_feature_num (int): The number of node features.
+        key (str): The key for the new dictionary entry.
+        value (dict): The original data dictionary.
+        preprocessed_dict (dict): The dictionary to add the preprocessed data to.
+
+    Returns:
+        dict: The updated dictionary with the preprocessed data.
+    """
+    arrivable_dict = {}
+    node_unit = []
     for row in value["arr_vlist"]:
-        row_n = np.zeros(node_f_num)
-        for i in range(len(row)):
-            row_n[i] = row[i]
-        row_n[len(row) :] = 0
-        n_unit.append(row_n.tolist())
-    arr_dict["node_f"] = n_unit
-    arr_dict["edge_index"] = value["arr_edge"]
-    arr_dict["edge_f"] = np.array(value["spn_labda"])[
-        [int(pa) for pa in value["arr_tranidx"]]
-    ].tolist()
-    arr_dict["label"] = value["spn_mu"]
-    pre_dict[key] = arr_dict
-    return pre_dict
+        row_n = np.zeros(node_feature_num)
+        row_n[:len(row)] = row
+        node_unit.append(row_n.tolist())
+
+    arrivable_dict["node_f"] = node_unit
+    arrivable_dict["edge_index"] = value["arr_edge"]
+
+    spn_lambda = np.array(value["spn_labda"])
+    arr_tran_idx = [int(pa) for pa in value["arr_tranidx"]]
+    arrivable_dict["edge_f"] = spn_lambda[arr_tran_idx].tolist()
+
+    arrivable_dict["label"] = value["spn_mu"]
+    preprocessed_dict[key] = arrivable_dict
+    return preprocessed_dict
 
 
-def sample_dir_json(sample_num, dir_loc):
-    all_list = []
-    json_nums, json_dirs = count_json_num(dir_loc)
-    data_range = np.arange(json_nums)
-    sample_jsons = np.random.choice(json_dirs, sample_num, replace=False)
-    sample_flag = False
-    # sample_jsons = json_dirs[sample_index]
-    for sj in sample_jsons:
-        while sample_flag == False:
-            cur_sj = os.path.join(dir_loc, sj)
-            cur_dict = load_json(cur_sj)
-            # 去除噪声，防止插入非常不合理的数据
-            if cur_dict["spn_mu"] >= -100 and cur_dict["spn_mu"] <= 100:
-                sample_flag = True
-            else:
-                sj = np.random.choice(json_dirs, 1, replace=False)[0]
-        all_list.append(cur_dict)
-    return all_list
+def sample_json_files_from_directory(num_samples, directory_path):
+    """Samples a specified number of JSON files from a directory.
 
+    Args:
+        num_samples (int): The number of JSON files to sample.
+        directory_path (str): The path to the directory.
 
-def gen_dict(all_datas):
-    counter = 1
-    data_dict = {}
-    for data in all_datas:
-        data_dict["data%s" % str(counter)] = data
-        counter += 1
-    return data_dict
-
-
-def load_arr_data(loc, lowlimit, upperlimit):
+    Returns:
+        list: A list of dictionaries, each loaded from a sampled JSON file.
     """
-    parameters：
+    _, json_files = count_json_files(directory_path)
+    sampled_files = np.random.choice(json_files, num_samples, replace=False)
 
-    loc : string 文件位置，例如：
-    "data/100_100data/arr/node_data%s.txt" % (j)
+    sampled_data = []
+    for file_name in sampled_files:
+        file_path = os.path.join(directory_path, file_name)
+        data = load_json_file(file_path)
+        # Filter out noisy data
+        if -100 <= data["spn_mu"] <= 100:
+            sampled_data.append(data)
+        else:
+            # Replace noisy data with a new random sample
+            while True:
+                new_file_name = np.random.choice(json_files, 1, replace=False)[0]
+                if new_file_name not in sampled_files:
+                    new_file_path = os.path.join(directory_path, new_file_name)
+                    new_data = load_json_file(new_file_path)
+                    if -100 <= new_data["spn_mu"] <= 100:
+                        sampled_data.append(new_data)
+                        sampled_files = np.append(sampled_files, new_file_name)
+                        break
+    return sampled_data
 
-    upperlimit ： j的最大值
 
-    return ：
-    所有数据的list
+def create_data_dictionary(all_data):
+    """Creates a dictionary from a list of data.
 
+    Args:
+        all_data (list): A list of data items.
+
+    Returns:
+        dict: A dictionary where keys are 'data1', 'data2', etc.
     """
-    all_data = []
-    for i in range(lowlimit, upperlimit):
-        all_data.append(load_data(loc % str(i + 1)))
-
-    return all_data
+    return {f"data{i+1}": data for i, data in enumerate(all_data)}
 
 
-def load_labda_mu(loc, i, lowlimit, upperlimit):
+def load_arrivable_data_range(location_template, lower_limit, upper_limit):
+    """Loads a range of data files based on a template.
+
+    Args:
+        location_template (str): A string template for the file path.
+        lower_limit (int): The starting index.
+        upper_limit (int): The ending index.
+
+    Returns:
+        list: A list of loaded data.
     """
-    parameters：
+    return [load_data_from_txt(location_template % str(i + 1)) for i in range(lower_limit, upper_limit)]
 
-    loc : string 文件位置，例如：
-    labda_loc = loc_root + "labda/labda%s/data%s.txt"(i,j)
 
-    upperlimit ： j的最大值
+def load_lambda_mu_range(location_template, i, lower_limit, upper_limit):
+    """Loads a range of lambda and mu data files.
 
-    return ：
-    所有数据的list
+    Args:
+        location_template (str): A string template for the file path.
+        i (int): The first index for the template.
+        lower_limit (int): The starting second index.
+        upper_limit (int): The ending second index.
 
+    Returns:
+        list: A list of loaded data.
     """
-    all_data = []
-    for j in range(lowlimit, upperlimit):
-        all_data.append(load_data(loc % (str(i), str(j + 1))))
-
-    return all_data
+    return [load_data_from_txt(location_template % (str(i), str(j + 1))) for j in range(lower_limit, upper_limit)]
 
 
-# def packagedata(save_root,data_root):
-# # save_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/package_data" % str(ds_idx)
-# # data_root = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS%s/preprocessd_data" % str(ds_idx)
-#     mkdir(save_root)
-#     dataset = NetLearningDatasetDGL(data_root)
-#
-#     start = time.time()
-#     with open(os.path.join(save_root,'dataset.pkl') ,'wb') as f:
-#         pickle.dump([dataset.train,dataset.test],f)
-#     print('Time (sec):',time.time() - start)
+def _preprocess_and_save_data(data_dict, node_feature_num, file_path):
+    """Preprocesses data and saves it to a JSON file."""
+    preprocessed_dict = {}
+    for key, value in data_dict.items():
+        preprocessed_dict = add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict)
+    save_data_to_json_file(file_path, preprocessed_dict)
 
 
-def partition_datasets(json_data_loc, node_f_num, ratio=0.2):
-    # json_data_loc = "/home/mingjian/Dataset/SGN/paperdataset/0813/DS4"
-    # json_data_loc = "data/SGNData/0823/3"
-    ori_data_loc = "ori_data"
-    prepro = "preprocessd_data"
-    # config_loc = "config/DataConfig/SPNGenerate.json"
-    # config = load_json(config_loc)
-    # node_f_num = config["max_place_num"] + 1
-    edge_f_num = 1
-    # DU.mkdir(os.path.join(json_data_loc,ori_data_loc))
-    all_data = load_json(os.path.join(json_data_loc, ori_data_loc, "all_data.json"))
-    print(len(all_data))
+def partition_datasets(json_data_directory, node_feature_num, test_ratio=0.2):
+    """Partitions the dataset into training and testing sets.
+
+    Args:
+        json_data_directory (str): The path to the directory with JSON data.
+        node_feature_num (int): The number of node features.
+        test_ratio (float, optional): The ratio of data to be used for testing. Defaults to 0.2.
+    """
+    original_data_dir = os.path.join(json_data_directory, "ori_data")
+    preprocessed_data_dir = os.path.join(json_data_directory, "preprocessd_data")
+
+    all_data_path = os.path.join(original_data_dir, "all_data.json")
+    all_data = load_json_file(all_data_path)
+
     train_data, test_data = train_test_split(
-        list(all_data.values()), test_size=ratio, random_state=0
-    )
-    print(len(train_data))
-    # print(train_data[0])
-    train_data_dict = gen_dict(train_data)
-    test_data_dict = gen_dict(test_data)
-    # print(len(train_data_dict))
-    # print(train_data_dict["data1"])
-    save_data_to_json(
-        os.path.join(json_data_loc, ori_data_loc, "train_data.json"), train_data_dict
-    )
-    save_data_to_json(
-        os.path.join(json_data_loc, ori_data_loc, "test_data.json"), test_data_dict
+        list(all_data.values()), test_size=test_ratio, random_state=0
     )
 
-    pre_train_dict = {}
-    for key, value in train_data_dict.items():
-        pre_train_dict = addpre_to_dict(node_f_num, key, value, pre_train_dict)
+    train_data_dict = create_data_dictionary(train_data)
+    test_data_dict = create_data_dictionary(test_data)
 
-    pre_test_dict = {}
-    for key, value in test_data_dict.items():
-        pre_test_dict = addpre_to_dict(node_f_num, key, value, pre_test_dict)
+    save_data_to_json_file(os.path.join(original_data_dir, "train_data.json"), train_data_dict)
+    save_data_to_json_file(os.path.join(original_data_dir, "test_data.json"), test_data_dict)
 
-    mkdir(os.path.join(json_data_loc, prepro))
-    # DU.mkdir(os.path.join(json_data_loc, pre_data_loc))
-    save_data_to_json(
-        os.path.join(json_data_loc, prepro, "train_data.json"), pre_train_dict
-    )
-    save_data_to_json(
-        os.path.join(json_data_loc, prepro, "test_data.json"), pre_test_dict
-    )
-    # packagedata(os.path.join(json_data_loc, "package_data"),os.path.join(json_data_loc, prepro))
+    create_directory(preprocessed_data_dir)
+
+    train_preprocessed_path = os.path.join(preprocessed_data_dir, "train_data.json")
+    _preprocess_and_save_data(train_data_dict, node_feature_num, train_preprocessed_path)
+
+    test_preprocessed_path = os.path.join(preprocessed_data_dir, "test_data.json")
+    _preprocess_and_save_data(test_data_dict, node_feature_num, test_preprocessed_path)
 
 
-def get_lowest_idx(va, vec):
-    # idx = 0
-    for i in range(len(vec)):
-        idx = i + 1
-        if va < vec[i]:
-            return idx
-    idx = len(vec)
-    return idx
+def get_lowest_index(value, vector):
+    """Finds the index of the first element in a vector that is greater than the given value.
+
+    Args:
+        value: The value to compare.
+        vector: The vector to search in.
+
+    Returns:
+        int: The index of the first element greater than the value.
+    """
+    for i, vec_value in enumerate(vector):
+        if value < vec_value:
+            return i + 1
+    return len(vector)

@@ -1,155 +1,159 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-# @File    : PetriGenerate.py
-# @Date    : 2020-08-22
-# @Author  : mingjian
-    描述
+This module provides functions for generating and modifying Petri nets.
 """
 
 from random import choice
-
 import numpy as np
 
 
-def generate_random_petri_net(num_places: int, num_transitions: int) -> np.ndarray:
-    """
-    Generates a random Petri net matrix.
+def _initialize_petri_net(num_places, num_transitions):
+    """Initializes the Petri net matrix and selects the first connection."""
+    remaining_nodes = list(range(1, num_places + num_transitions + 1))
+    petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype="int32")
+
+    first_place = choice(range(num_places)) + 1
+    first_transition = choice(range(num_transitions)) + num_places + 1
+
+    remaining_nodes.remove(first_place)
+    remaining_nodes.remove(first_transition)
+
+    if np.random.rand() <= 0.5:
+        petri_matrix[first_place - 1, first_transition - num_places - 1] = 1
+    else:
+        petri_matrix[first_place - 1, first_transition - num_places - 1 + num_transitions] = 1
+
+    np.random.shuffle(remaining_nodes)
+    sub_graph = np.array([first_place, first_transition])
+    return petri_matrix, remaining_nodes, sub_graph
+
+
+def _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions):
+    """Connects the remaining nodes to the sub-graph."""
+    for node in np.random.permutation(remaining_nodes):
+        sub_places = sub_graph[sub_graph <= num_places]
+        sub_transitions = sub_graph[sub_graph > num_places]
+
+        if node <= num_places:
+            place = node
+            transition = choice(sub_transitions)
+        else:
+            place = choice(sub_places)
+            transition = node
+
+        if np.random.rand() <= 0.5:
+            petri_matrix[place - 1, transition - num_places - 1] = 1
+        else:
+            petri_matrix[place - 1, transition - num_places - 1 + num_transitions] = 1
+
+        sub_graph = np.concatenate((sub_graph, [node]))
+    return petri_matrix
+
+
+def generate_random_petri_net(num_places, num_transitions):
+    """Generates a random Petri net matrix.
 
     Args:
-        num_places (int): The number of places in the Petri net.
-        num_transitions (int): The number of transitions in the Petri net.
+        num_places (int): The number of places.
+        num_transitions (int): The number of transitions.
 
     Returns:
-        np.ndarray: A Petri net matrix of shape (num_places, 2 * num_transitions + 1).
-                       The columns represent (pre-transitions, post-transitions, initial_marking).
+        np.ndarray: The generated Petri net matrix.
     """
-    remain_node = [i + 1 for i in range(num_places + num_transitions)]
-    petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype="int32")
-    first_p = choice(range(num_places)) + 1
-    first_t = choice(range(num_transitions)) + num_places + 1
+    petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(num_places, num_transitions)
+    petri_matrix = _connect_remaining_nodes(
+        petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions
+    )
 
-    remain_node.remove(first_p)
-    remain_node.remove(first_t)
-    rand_num = np.random.rand()
-    if rand_num <= 0.5:
-        petri_matrix[first_p - 1][first_t - num_places - 1] = 1
-    else:
-        petri_matrix[first_p - 1][first_t - num_places - 1 + num_transitions] = 1
-    np.random.shuffle(remain_node)
-
-    sub_graph = np.array(([first_p, first_t]))
-    for r_node in np.random.permutation(remain_node):
-        subp_list = sub_graph[sub_graph <= num_places]
-        subt_list = sub_graph[sub_graph > num_places]
-
-        if r_node <= num_places:  # Is it a place?
-            p = r_node
-            t = choice(subt_list)
-        else:
-            p = choice(subp_list)
-            t = r_node
-
-        if rand_num <= 0.5:
-            petri_matrix[p - 1][t - num_places - 1] = 1
-        else:
-            petri_matrix[p - 1][t - num_places - 1 + num_transitions] = 1
-        sub_graph = np.concatenate((sub_graph, [r_node]))
-        remain_node.remove(r_node)
-
-    rand_num = np.random.randint(0, num_places)
-    petri_matrix[rand_num][-1] = 1
+    # Add an initial marking
+    random_place = np.random.randint(0, num_places)
+    petri_matrix[random_place, -1] = 1
 
     return petri_matrix
 
 
-# Suggested name: prune_petri_net
-def prune_petri_net(petri_matrix: np.ndarray) -> np.ndarray:
-    """
-    Prunes the given Petri net matrix by deleting some edges and adding nodes.
+def prune_petri_net(petri_matrix):
+    """Prunes a Petri net by deleting edges and adding nodes.
 
     Args:
-        petri_matrix (np.ndarray): The Petri net matrix to prune.
+        petri_matrix (np.ndarray): The Petri net matrix.
 
     Returns:
         np.ndarray: The pruned Petri net matrix.
     """
-    tran_num = (len(petri_matrix[0]) - 1) // 2
-    petri_matrix = delete_excess_edges(petri_matrix, tran_num)
-    petri_matrix = add_necessary_nodes(petri_matrix, tran_num)
-
+    num_transitions = (petri_matrix.shape[1] - 1) // 2
+    petri_matrix = delete_excess_edges(petri_matrix, num_transitions)
+    petri_matrix = add_missing_connections(petri_matrix, num_transitions)
     return petri_matrix
 
 
-# Suggested name: delete_excess_edges
-def delete_excess_edges(gra_matrix: np.ndarray, tran_num: int) -> np.ndarray:
-    """
-    Deletes excess edges from the Petri net matrix.
-
-    Args:
-        gra_matrix (np.ndarray): The Petri net matrix.
-        tran_num (int): The number of transitions in the Petri net.
-
-    Returns:
-        np.ndarray: The Petri net matrix with some edges deleted.
-    """
-    for row in range(len(gra_matrix)):
-        if np.sum(gra_matrix[row, 0:-1]) >= 3:
-            item_indices = np.argwhere(gra_matrix[row, 0:-1] == 1).flatten()
-            removal_indices = np.random.choice(item_indices, len(item_indices) - 2, replace=False)
-            gra_matrix[row][removal_indices] = 0
-
-    for i in range(2 * tran_num):
-        if np.sum(gra_matrix[:, i]) >= 3:
-            item_indices = np.argwhere(gra_matrix[:, i] == 1).flatten()
-            removal_indices = np.random.choice(item_indices, len(item_indices) - 2, replace=False)
-            for removal_index in removal_indices:
-                gra_matrix[removal_index][i] = 0
-
-    return gra_matrix
-
-
-def add_necessary_nodes(petri_matrix: np.ndarray, tran_num: int) -> np.ndarray:
-    """
-    Adds necessary nodes (edges) to the Petri net matrix to ensure connectivity.
+def delete_excess_edges(petri_matrix, num_transitions):
+    """Deletes excess edges from the Petri net.
 
     Args:
         petri_matrix (np.ndarray): The Petri net matrix.
-        tran_num (int): The number of transitions in the Petri net.
+        num_transitions (int): The number of transitions.
 
     Returns:
-        np.ndarray: The Petri net matrix with necessary nodes added.
+        np.ndarray: The matrix with excess edges removed.
     """
-    left_matrix = petri_matrix[:, 0:tran_num]
-    right_matrix = petri_matrix[:, tran_num:-1]
+    for i in range(petri_matrix.shape[0]):  # Iterate over places
+        if np.sum(petri_matrix[i, :-1]) >= 3:
+            edge_indices = np.where(petri_matrix[i, :-1] == 1)[0]
+            indices_to_remove = np.random.choice(
+                edge_indices, len(edge_indices) - 2, replace=False
+            )
+            petri_matrix[i, indices_to_remove] = 0
 
-    # each column must have a 1
-    zero_sum_cols = np.where(np.sum(petri_matrix[:, :2 * tran_num], axis=0) < 1)[0]
-    random_indices_cols = np.random.randint(0, len(petri_matrix), size=len(zero_sum_cols))
-    petri_matrix[random_indices_cols, zero_sum_cols] = 1
-
-    # Each row must have two elements of 1, the left matrix has 1, and the right must also have 1
-    rows_with_zero_left_sum = np.where(np.sum(left_matrix, axis=1) < 1)[0]
-    random_indices_left = np.random.randint(0, tran_num, size=len(rows_with_zero_left_sum))
-    petri_matrix[rows_with_zero_left_sum, random_indices_left] = 1
-
-    rows_with_zero_right_sum = np.where(np.sum(right_matrix, axis=1) < 1)[0]
-    random_indices_right = np.random.randint(0, tran_num, size=len(rows_with_zero_right_sum))
-    petri_matrix[rows_with_zero_right_sum, random_indices_right + tran_num] = 1
+    for i in range(2 * num_transitions):  # Iterate over transitions
+        if np.sum(petri_matrix[:, i]) >= 3:
+            edge_indices = np.where(petri_matrix[:, i] == 1)[0]
+            indices_to_remove = np.random.choice(
+                edge_indices, len(edge_indices) - 2, replace=False
+            )
+            petri_matrix[indices_to_remove, i] = 0
 
     return petri_matrix
 
 
-def add_token_to_random_place(petri_matrix: np.ndarray) -> np.ndarray:
+def add_missing_connections(petri_matrix, num_transitions):
+    """Adds connections to ensure the Petri net is valid.
+
+    Args:
+        petri_matrix (np.ndarray): The Petri net matrix.
+        num_transitions (int): The number of transitions.
+
+    Returns:
+        np.ndarray: The matrix with missing connections added.
     """
-    Randomly adds tokens to the places in the Petri net matrix (vectorized).
+    # Ensure each transition has at least one connection
+    pre_matrix = petri_matrix[:, :num_transitions]
+    post_matrix = petri_matrix[:, num_transitions:-1]
+
+    zero_sum_cols = np.where(np.sum(petri_matrix[:, :2 * num_transitions], axis=0) == 0)[0]
+    random_rows = np.random.randint(0, petri_matrix.shape[0], size=len(zero_sum_cols))
+    petri_matrix[random_rows, zero_sum_cols] = 1
+
+    # Ensure each place has at least one incoming and one outgoing edge
+    rows_with_zero_pre_sum = np.where(np.sum(pre_matrix, axis=1) == 0)[0]
+    random_cols_pre = np.random.randint(0, num_transitions, size=len(rows_with_zero_pre_sum))
+    petri_matrix[rows_with_zero_pre_sum, random_cols_pre] = 1
+
+    rows_with_zero_post_sum = np.where(np.sum(post_matrix, axis=1) == 0)[0]
+    random_cols_post = np.random.randint(0, num_transitions, size=len(rows_with_zero_post_sum))
+    petri_matrix[rows_with_zero_post_sum, random_cols_post + num_transitions] = 1
+
+    return petri_matrix
+
+
+def add_tokens_randomly(petri_matrix):
+    """Adds tokens to random places in the Petri net.
 
     Args:
         petri_matrix (np.ndarray): The Petri net matrix.
 
     Returns:
-        np.ndarray: The Petri net matrix with potentially added tokens.
+        np.ndarray: The matrix with tokens added.
     """
-    random_values = np.random.randint(0, 10, size=len(petri_matrix))
+    random_values = np.random.randint(0, 10, size=petri_matrix.shape[0])
     petri_matrix[:, -1] += (random_values <= 2).astype(int)
     return petri_matrix
