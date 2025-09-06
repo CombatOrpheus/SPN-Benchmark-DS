@@ -6,144 +6,219 @@ from joblib import Parallel, delayed
 np.set_printoptions(precision=4)
 
 
-def plot_petri(petri_gra, loc):
+def plot_petri(petri_net_matrix, output_filepath):
+    """Generates a visual representation of a Petri net from a matrix and saves it as a PNG image.
+
+    The input matrix defines the structure of the Petri net. It is expected to be structured as follows:
+    - The first part of the matrix represents the connections from places to transitions.
+    - The middle part represents the connections from transitions to places.
+    - The last column represents the initial marking (tokens) of the places.
+
+    Args:
+        petri_net_matrix (list or np.ndarray): A matrix describing the Petri net structure and initial marking.
+        output_filepath (str): The path (including filename without extension) where the output PNG file will be saved.
+    """
     dot = Digraph()
-    data = petri_gra
-    data = np.array(data, dtype=int)
-    # print(data)
+    matrix = np.array(petri_net_matrix, dtype=int)
 
-    deli_inde = int((data.shape[1] - 1) / 2)
+    # The divider index splits the matrix into input and output connections for transitions.
+    # It assumes the last column is for markings, so it's subtracted.
+    divider_index = int((matrix.shape[1] - 1) / 2)
 
-    for i in range(len(data)):
-        # dot.node("P"+str(i+1),"P"+str(i+1))
-        # dot.node("P" + str(i + 1), "●",labelfloat=True)
-        if data[i][-1] >= 1:
-            no_str = "P" + str(i + 1) + "\n"
-            for j in range(data[i][-1]):
-                no_str += "● "
-
-            dot.node("P" + str(i + 1), no_str)
+    # Create place nodes (circles)
+    num_places = len(matrix)
+    for i in range(num_places):
+        # The last column in the matrix represents the number of tokens in the place.
+        token_count = matrix[i][-1]
+        node_label = f"P{i + 1}\\n"
+        if token_count >= 1:
+            # Represent tokens with '●' symbols
+            node_label += "● " * token_count
         else:
-            dot.node("P" + str(i + 1), "P" + str(i + 1) + "\n\n")
+            # Add space for alignment if there are no tokens
+            node_label += "\\n"
 
-    for i in range(deli_inde):
-        # dot.node("P"+str(i+1),"P"+str(i+1))
-        # dot.node("P" + str(i + 1), "●",labelfloat=True)
-        dot.node("t" + str(i + 1), "t" + str(i + 1) + "", shape="box")
-    for i in range(len(data)):
-        for j in range(deli_inde):
-            if data[i][j] == 1:
-                dot.edge(str("P" + str(i + 1)), str("t" + str(j + 1)))
-    # print(deli_inde)
+        dot.node(f"P{i + 1}", node_label)
 
-    metrix_right = data[:, deli_inde:-1]
-    # print(metrix_right)
+    # Create transition nodes (boxes)
+    num_transitions = divider_index
+    for i in range(num_transitions):
+        dot.node(f"t{i + 1}", f"t{i + 1}", shape="box")
 
-    for i in range(len(metrix_right)):
-        for j in range(metrix_right.shape[1]):
-            if metrix_right[i][j] == 1:
-                dot.edge(str("t" + str(j + 1)), str("P" + str(i + 1)))
+    # Create edges from places to transitions (input arcs)
+    for i in range(num_places):
+        for j in range(num_transitions):
+            if matrix[i][j] == 1:
+                dot.edge(f"P{i + 1}", f"t{j + 1}")
+
+    # Extract the part of the matrix representing connections from transitions to places.
+    output_matrix = matrix[:, divider_index:-1]
+
+    # Create edges from transitions to places (output arcs)
+    for i in range(len(output_matrix)):
+        for j in range(output_matrix.shape[1]):
+            if output_matrix[i][j] == 1:
+                dot.edge(f"t{j + 1}", f"P{i + 1}")
 
     dot.format = "png"
     try:
-        dot.render(loc)
+        # cleanup=True removes the intermediate DOT source file after rendering.
+        dot.render(output_filepath, cleanup=True)
     except Exception:
+        # Fail silently if graphviz is not installed or there's another issue.
         return
 
 
-def plot_arri_gra(v_list, edage_list, arctrans_list, loc):
-    dot = Digraph()
-    for i in range(len(v_list)):
-        dot.node("M" + str(i + 1), "M" + str(i) + "\n" + str(v_list[i]), shape="box")
+def plot_arri_gra(vertex_list, edge_list, arc_transition_list, output_filepath):
+    """Generates a visualization of a graph, likely an arrival graph, and saves it as a PNG image.
 
-    for edage, arctrans in zip(edage_list, arctrans_list):
-        dot.edge(
-            str("M" + str(edage[0] + 1)),
-            str("M" + str(edage[1] + 1)),
-            label=("t" + str(arctrans + 1)),
-        )
+    This function creates a graph with nodes representing states (Markings) and edges representing transitions between them.
+
+    Args:
+        vertex_list (list): A list of vertices, where each vertex has a label or value.
+        edge_list (list of tuples): A list of edges, where each edge is a tuple of two vertex indices (0-based).
+        arc_transition_list (list): A list of transition indices corresponding to each edge.
+        output_filepath (str): The path (including filename without extension) where the output PNG file will be saved.
+    """
+    dot = Digraph()
+
+    # Create nodes for each vertex in the list
+    for i, vertex_value in enumerate(vertex_list):
+        node_label = f"M{i}\\n{vertex_value}"
+        dot.node(f"M{i + 1}", node_label, shape="box")
+
+    # Create edges between nodes
+    for edge, arc_transition in zip(edge_list, arc_transition_list):
+        source_node = f"M{edge[0] + 1}"
+        destination_node = f"M{edge[1] + 1}"
+        edge_label = f"t{arc_transition + 1}"
+        dot.edge(source_node, destination_node, label=edge_label)
+
     dot.attr(fontsize="20")
     dot.format = "png"
     try:
-        dot.render(loc)
+        # cleanup=True removes the intermediate DOT source file after rendering.
+        dot.render(output_filepath, cleanup=True)
     except Exception:
+        # Fail silently if there's an issue with rendering.
         return
 
 
 def plot_spn(
-    v_list,
-    edage_list,
-    arctrans_list,
-    labda,
-    sv,
-    midubiaoji,
-    mu_biaoji,
-    loc="test-output/test.gv",
+    vertex_list,
+    edge_list,
+    arc_transition_list,
+    lambda_values,
+    steady_state_vector,
+    token_density_function,
+    average_token_count,
+    output_filepath="test-output/test.gv",
 ):
+    """
+    Generates a visualization of a Stochastic Petri Net (SPN) and related performance metrics.
+
+    This function creates a graph of the SPN's state space and annotates it with lambda values.
+    It also adds a label to the graph with key metrics like steady-state probability,
+    token density, and average token counts.
+
+    Args:
+        vertex_list (list): A list of vertices, where each vertex has a label or value.
+        edge_list (list of tuples): A list of edges, where each edge is a tuple of two vertex indices.
+        arc_transition_list (list): A list of transition indices corresponding to each edge.
+        lambda_values (list): A list of lambda values (firing rates) for the transitions.
+        steady_state_vector (list or np.ndarray): The steady-state probability vector for the markings.
+        token_density_function (list or np.ndarray): The token probability density function.
+        average_token_count (list or np.ndarray): The average number of tokens in each place.
+        output_filepath (str, optional): The path where the output PNG file will be saved.
+                                        Defaults to "test-output/test.gv".
+    """
     dot = Digraph()
-    # print(pangbiao_list)
-    for i in range(len(v_list)):
-        dot.node("M" + str(i + 1), "M" + str(i) + "\n" + str(v_list[i]), shape="box")
 
-    for edage, arctrans in zip(edage_list, arctrans_list):
-        at_idx = int(arctrans)
-        # at_idx = int(re.findall(r"\d+\.?\d*", str(arctrans))[0]) - 1
-        dot.edge(
-            str("M" + str(edage[0] + 1)),
-            str("M" + str(edage[1] + 1)),
-            label=(str("t%s" % (arctrans + 1)) + " [" + str(labda[at_idx]) + "]"),
-        )
+    # Create nodes for each vertex
+    for i, vertex_value in enumerate(vertex_list):
+        node_label = f"M{i}\\n{vertex_value}"
+        dot.node(f"M{i + 1}", node_label, shape="box")
 
-    dot.attr(
-        label=r"\n Steady State Probability: \n"
-        + str(np.array(sv))
-        + "\n Token Probability Density Function:\n"
-        + str(np.array(midubiaoji))
-        + "\n The Average Number of Tokens in the Place :\n"
-        + str(np.array(mu_biaoji))
-        + "\n Sum of the Average Numbers of Tokens:\n"
-        + str(np.array([np.sum(mu_biaoji)]))
+    # Create edges with transition labels and lambda values
+    for edge, arc_transition in zip(edge_list, arc_transition_list):
+        transition_index = int(arc_transition)
+        source_node = f"M{edge[0] + 1}"
+        destination_node = f"M{edge[1] + 1}"
+        edge_label = f"t{arc_transition + 1} [{lambda_values[transition_index]}]"
+        dot.edge(source_node, destination_node, label=edge_label)
+
+    # Create a detailed label with performance metrics
+    metrics_label = (
+        f"\\n Steady State Probability: \\n{np.array(steady_state_vector)}\\n"
+        f" Token Probability Density Function:\\n{np.array(token_density_function)}\\n"
+        f" The Average Number of Tokens in the Place :\\n{np.array(average_token_count)}\\n"
+        f" Sum of the Average Numbers of Tokens:\\n{np.array([np.sum(average_token_count)])}"
     )
+    dot.attr(label=metrics_label)
     dot.attr(fontsize="20")
     dot.format = "png"
 
     try:
-        dot.render(loc)
+        dot.render(output_filepath, cleanup=True)
     except Exception:
         return
 
 
-def save_i_pic(data, w_pic_loc, counter):
+def save_i_pic(graph_data, output_directory, file_counter):
+    """
+    Generates and saves Petri net and SPN visualizations for a single data instance.
+
+    This function calls the respective plotting functions for the Petri net and the SPN
+    state space, which save the visualizations to the specified directory.
+
+    Args:
+        graph_data (dict): A dictionary containing the data required for plotting.
+                           Expected keys include 'petri_net', 'arr_vlist', 'arr_edge', etc.
+        output_directory (str): The directory where the final PNG images will be saved.
+        file_counter (int): A counter to create unique filenames for the images.
+    """
+    # Define filepaths for the output images. The plotting functions will add the .png extension.
+    petri_filepath = os.path.join(output_directory, f"data(petri){file_counter}")
+    spn_filepath = os.path.join(output_directory, f"data(arr){file_counter}")
+
+    # Generate and save the Petri net visualization
     plot_petri(
-        data["petri_net"], os.path.join(w_pic_loc, "data(petri)%s" % str(counter))
+        petri_net_matrix=graph_data["petri_net"],
+        output_filepath=petri_filepath
     )
+
+    # Generate and save the SPN visualization
     plot_spn(
-        data["arr_vlist"],
-        data["arr_edge"],
-        data["arr_tranidx"],
-        data["spn_labda"],
-        data["spn_steadypro"],
-        data["spn_markdens"],
-        data["spn_allmus"],
-        os.path.join(w_pic_loc, "data(arr)%s" % str(counter)),
+        vertex_list=graph_data["arr_vlist"],
+        edge_list=graph_data["arr_edge"],
+        arc_transition_list=graph_data["arr_tranidx"],
+        lambda_values=graph_data["spn_labda"],
+        steady_state_vector=graph_data["spn_steadypro"],
+        token_density_function=graph_data["spn_markdens"],
+        average_token_count=graph_data["spn_allmus"],
+        output_filepath=spn_filepath,
     )
-    os.remove(os.path.join(w_pic_loc, "data(arr)%s" % str(counter)))
-    os.remove(os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
 
 
-def visual_data(all_data, w_pic_loc, pall_job):
-    Parallel(n_jobs=pall_job)(
-        delayed(save_i_pic)(all_data["data%s" % str(i + 1)], w_pic_loc, i + 1)
-        for i in range(len(all_data))
+def visual_data(all_graph_data, output_directory, parallel_job_count):
+    """
+    Generates and saves visualizations for a collection of data in parallel.
+
+    This function uses joblib to parallelize the process of creating and saving
+    Petri net and SPN visualizations for each data item in the input collection.
+
+    Args:
+        all_graph_data (dict): A dictionary containing all the data instances to be visualized.
+                               It is expected to have keys like 'data1', 'data2', etc.
+        output_directory (str): The directory where the final PNG images will be saved.
+        parallel_job_count (int): The number of parallel jobs to run for generating images.
+    """
+    Parallel(n_jobs=parallel_job_count)(
+        delayed(save_i_pic)(
+            graph_data=all_graph_data[f"data{i + 1}"],
+            output_directory=output_directory,
+            file_counter=i + 1,
+        )
+        for i in range(len(all_graph_data))
     )
-    # counter = 1
-    # for data in all_data.values():
-    #     plot_petri(data['petri_net'], os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
-    #     plot_spn(data['arr_vlist'], data['arr_edge'], data['arr_tranidx'],
-    #                     data['spn_labda'], data['spn_steadypro'], data['spn_markdens'],
-    #                     data['spn_allmus'], os.path.join(w_pic_loc, "data(arr)%s" % str(counter))
-    #                     )
-    #     os.remove(os.path.join(w_pic_loc, "data(arr)%s" % str(counter)))
-    #     os.remove(os.path.join(w_pic_loc, "data(petri)%s" % str(counter)))
-    #     counter += 1
-    print("save  pic successful!!")
+    print("Image saving process initiated successfully!")
