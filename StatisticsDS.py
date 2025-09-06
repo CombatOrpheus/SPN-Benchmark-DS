@@ -1,63 +1,103 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-# @File    : StatisticsDS.py
-# @Date    : 2020-09-03
-# @Author  : mingjian
-    描述
+This script calculates and saves statistics about the distribution of data in a dataset.
 """
 
-from utils import DataUtil as DU
 import os
 import numpy as np
-from utils.ExcelTools import ExcelTool as ET
-
-dataset_name = "DS3"  # DS1 ~ DS5
-data_type = "GridData"  # "GridData", "RandData"
-# data_loc = "/home/mingjian/Dataset/SGN/paperdataset/0813/%s/ori_data" % dataset_name
-# data_loc = "/home/mingjian/Dataset/SPN/0904/GridData/%s/ori_data" % dataset_name
-data_loc = "Data/%s/%s/ori_data" % (data_type, dataset_name)
-save_data_loc = "result/%s/excel" % data_type
-all_train_data = DU.load_json(os.path.join(data_loc, "train_data.json"))
-all_test_data = DU.load_json(os.path.join(data_loc, "test_data.json"))
-
-if data_type == "RandData":
-    row_p = [5 + 2 * (i + 1) for i in range(3)]
-    col_m = [4 + 6 * (i + 1) for i in range(8)]
-else:
-    row_p = [5 + 2 * (i + 1) for i in range(5)]
-    col_m = [4 + 4 * (i + 1) for i in range(10)]
-print(row_p)
-print(col_m)
-
-dir_count = np.zeros([len(row_p), len(col_m)], dtype=int)
-
-for data in all_train_data.values():
-    petri_net = data["petri_net"]
-    v_list = data["arr_vlist"]
-    p_num = DU.get_lowest_idx(len(petri_net), row_p)
-    m_num = DU.get_lowest_idx(len(v_list), col_m)
-    dir_count[p_num - 1][m_num - 1] = dir_count[p_num - 1][m_num - 1] + 1
-
-for data in all_test_data.values():
-    petri_net = data["petri_net"]
-    v_list = data["arr_vlist"]
-    p_num = DU.get_lowest_idx(len(petri_net), row_p)
-    m_num = DU.get_lowest_idx(len(v_list), col_m)
-    dir_count[p_num - 1][m_num - 1] = dir_count[p_num - 1][m_num - 1] + 1
-print(dir_count)
-DU.mkdir(save_data_loc)
+from utils import DataUtil as DU
+from utils.ExcelTools import ExcelTool
 
 
-ET = ET(save_data_loc, "static%s.xls" % dataset_name, dataset_name)
-value_title = [
-    ["data distribution"],
-]
+def get_grid_boundaries(data_type):
+    """Gets the grid boundaries based on the data type.
 
-ET.write_xls(value_title)
-ET.write_xls_append([row_p])
-ET.write_xls_append([col_m])
-ET.write_xls_append(dir_count.astype(int).tolist())
+    Args:
+        data_type (str): The type of data, either "GridData" or "RandData".
 
-ET.read_excel_xls()
-print("data toatal num: ", np.sum(dir_count))
+    Returns:
+        tuple: A tuple containing the row and column boundaries.
+    """
+    if data_type == "RandData":
+        row_boundaries = [5 + 2 * (i + 1) for i in range(3)]
+        col_boundaries = [4 + 6 * (i + 1) for i in range(8)]
+    else:
+        row_boundaries = [5 + 2 * (i + 1) for i in range(5)]
+        col_boundaries = [4 + 4 * (i + 1) for i in range(10)]
+    return row_boundaries, col_boundaries
+
+
+def count_data_distribution(data, row_boundaries, col_boundaries):
+    """Counts the distribution of data across the grid.
+
+    Args:
+        data (dict): A dictionary of data instances.
+        row_boundaries (list): The boundaries for the rows (places).
+        col_boundaries (list): The boundaries for the columns (markings).
+
+    Returns:
+        np.ndarray: A 2D array representing the distribution count.
+    """
+    distribution_count = np.zeros(
+        (len(row_boundaries), len(col_boundaries)), dtype=int
+    )
+    for item in data.values():
+        num_places = len(item["petri_net"])
+        num_markings = len(item["arr_vlist"])
+        row_idx = DU.get_lowest_index(num_places, row_boundaries)
+        col_idx = DU.get_lowest_index(num_markings, col_boundaries)
+        distribution_count[row_idx - 1, col_idx - 1] += 1
+    return distribution_count
+
+
+def save_statistics_to_excel(
+    save_dir, dataset_name, row_boundaries, col_boundaries, distribution_count
+):
+    """Saves the dataset statistics to an Excel file.
+
+    Args:
+        save_dir (str): The directory to save the Excel file in.
+        dataset_name (str): The name of the dataset.
+        row_boundaries (list): The boundaries for the rows.
+        col_boundaries (list): The boundaries for the columns.
+        distribution_count (np.ndarray): The distribution count matrix.
+    """
+    DU.create_directory(save_dir)
+    excel_tool = ExcelTool(save_dir, f"static_{dataset_name}.xls", dataset_name)
+
+    excel_tool.write_xls([["Data Distribution"]])
+    excel_tool.write_xls_append([row_boundaries])
+    excel_tool.write_xls_append([col_boundaries])
+    excel_tool.write_xls_append(distribution_count.astype(int).tolist())
+
+    excel_tool.read_excel_xls()
+
+
+def main():
+    """Main function to calculate and save dataset statistics."""
+    dataset_name = "DS3"  # Example: "DS1" through "DS5"
+    data_type = "GridData"  # "GridData" or "RandData"
+
+    data_dir = f"Data/{data_type}/{dataset_name}/ori_data"
+    save_dir = f"result/{data_type}/excel"
+
+    train_data = DU.load_json_file(os.path.join(data_dir, "train_data.json"))
+    test_data = DU.load_json_file(os.path.join(data_dir, "test_data.json"))
+
+    row_boundaries, col_boundaries = get_grid_boundaries(data_type)
+
+    train_distribution = count_data_distribution(train_data, row_boundaries, col_boundaries)
+    test_distribution = count_data_distribution(test_data, row_boundaries, col_boundaries)
+    total_distribution = train_distribution + test_distribution
+
+    print("Data Distribution:")
+    print(total_distribution)
+
+    save_statistics_to_excel(
+        save_dir, dataset_name, row_boundaries, col_boundaries, total_distribution
+    )
+
+    print(f"Total number of data points: {np.sum(total_distribution)}")
+
+
+if __name__ == "__main__":
+    main()
