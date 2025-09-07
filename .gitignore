@@ -164,3 +164,6 @@ Data/
 *.hdf5
 *.pkl
 *.new.txt
+
+# Cython generated files
+**/*.c

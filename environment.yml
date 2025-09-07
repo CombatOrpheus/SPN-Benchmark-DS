@@ -11,6 +11,7 @@ dependencies:
   - scipy
   - h5py
   - joblib
+  - numba
   # Deep learning and GNN
   - pytorch
   - torchvision
