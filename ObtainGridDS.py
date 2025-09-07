@@ -82,18 +82,18 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path):
 
 def sample_and_transform_data(config):
     """Samples data from the grid and applies transformations."""
-    grid_data_loc = os.path.join(config["tmp_grid_loc"], "p%s", "m%s")
+    grid_data_loc = os.path.join(config["temporary_grid_location"], "p%s", "m%s")
     all_data = []
-    for i in range(config["p_upper_limit"]):
-        for j in range(config["m_upper_limit"]):
+    for i in range(config["places_upper_limit"]):
+        for j in range(config["markings_upper_limit"]):
             sampled_list = DU.sample_json_files_from_directory(
-                config["each_grid_num"], grid_data_loc % (i + 1, j + 1)
+                config["samples_per_grid"], grid_data_loc % (i + 1, j + 1)
             )
             all_data.extend(sampled_list)
 
     transformed_data = []
     for data in all_data:
-        new_data = dts.generate_lambda_variations(data, config["labda_num"])
+        new_data = dts.generate_lambda_variations(data, config["lambda_variations_per_sample"])
         transformed_data.extend(new_data)
 
     return transformed_data
@@ -120,15 +120,15 @@ def package_dataset(save_dir, data):
 
 def main():
     """Main function to generate the grid dataset."""
-    config = DU.load_json_file("config/DataConfig/PartitionGrid.json")
+    config = DU.load_toml_file("config/DataConfig/PartitionGrid.toml")
 
     partition_data_into_grid(
-        config["tmp_grid_loc"], config["accumulation_data"], config["raw_data_loc"]
+        config["temporary_grid_location"], config["accumulation_data"], config["raw_data_location"]
     )
 
     processed_data = sample_and_transform_data(config)
 
-    package_dataset(config["save_grid_loc"], processed_data)
+    package_dataset(config["output_grid_location"], processed_data)
 
 
 if __name__ == "__main__":

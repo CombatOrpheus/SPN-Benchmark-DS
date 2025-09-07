@@ -1,5 +1,6 @@
 import json
 import os
+import toml
 from sklearn.model_selection import train_test_split
 import numpy as np
 
@@ -38,6 +39,19 @@ def load_json_file(file_path):
     """
     with open(file_path, 'r') as f:
         return json.load(f)
+
+
+def load_toml_file(file_path):
+    """Loads data from a TOML file.
+
+    Args:
+        file_path (str): The path to the TOML file.
+
+    Returns:
+        dict: The data loaded from the TOML file.
+    """
+    with open(file_path, 'r') as f:
+        return toml.load(f)
 
 
 def load_all_data_from_json_directory(directory_path):

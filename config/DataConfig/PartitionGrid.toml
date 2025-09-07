@@ -1,0 +1,8 @@
+raw_data_location = "Data/SPNOriData/data1/ori_data/all_data.json"
+temporary_grid_location = "Data/griddata"
+accumulation_data = true
+places_upper_limit = 5
+markings_upper_limit = 10
+samples_per_grid = 5
+lambda_variations_per_sample = 10
+output_grid_location = "Data/GridData/DS1"
