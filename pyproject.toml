@@ -16,8 +16,6 @@ dependencies = [
     "numba==0.61.2",
 
     # Deep learning and GNN packages
-    "torch==2.8.0",
-    "torchvision==0.23.0",
     "torch-scatter==2.1.2",
 
     # Utilities
@@ -41,11 +39,16 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
     "black",
 ]
 
 [build-system]
-requires = ["setuptools>=61.0", "Cython", "numpy"]
+requires = [
+    "setuptools>=61.0",
+    "Cython",
+    "numpy",
+]
 build-backend = "setuptools.build_meta"
 
 [tool.black]

@@ -65,7 +65,7 @@ def _generate_rate_variations(base_variation, num_variations):
 
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
-        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_graphical_net_task_with_given_rates(
+        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
             [v for v in base_variation["arr_vlist"]],
             base_variation["arr_edge"].tolist(),
             base_variation["arr_tranidx"].tolist(),
@@ -114,9 +114,7 @@ def generate_petri_net_variations(
     candidate_matrices = _generate_candidate_matrices(base_petri_matrix)
 
     results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_stochastic_petri_net)(
-            matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-        )
+        delayed(SPN.filter_spn)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
         for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
@@ -125,9 +123,7 @@ def generate_petri_net_variations(
     all_augmented_data.extend(structural_variations)
 
     for base_variation in structural_variations:
-        rate_variations = _generate_rate_variations(
-            base_variation, num_rate_variations_per_structure
-        )
+        rate_variations = _generate_rate_variations(base_variation, num_rate_variations_per_structure)
         all_augmented_data.extend(rate_variations)
 
     return all_augmented_data
@@ -149,7 +145,7 @@ def generate_lambda_variations(petri_dict, num_lambda_variations):
 
     while len(lambda_variations) < num_lambda_variations:
         lambda_values = np.random.randint(1, 11, size=num_transitions)
-        results_dict, success = SPN.get_stochastic_petri_net(
+        results_dict, success = SPN.get_spn_info(
             petri_net,
             petri_dict["arr_vlist"],
             petri_dict["arr_edge"],

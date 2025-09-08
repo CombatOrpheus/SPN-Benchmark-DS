@@ -75,9 +75,7 @@ class MPNNNet(BasicNets):
 
             else:
                 if self.dst_f:
-                    h = mpnn(
-                        g, src_feat=x[src], dst_feat=x[dst], h_feat=h, snorm_e=snorm_e
-                    )
+                    h = mpnn(g, src_feat=x[src], dst_feat=x[dst], h_feat=h, snorm_e=snorm_e)
                 else:
                     h = mpnn(g, src_feat=x[src], h_feat=h, snorm_e=snorm_e)
 

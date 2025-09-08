@@ -60,9 +60,7 @@ def generate_random_petri_net(num_places, num_transitions):
         np.ndarray: The generated Petri net matrix.
     """
     petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(num_places, num_transitions)
-    petri_matrix = _connect_remaining_nodes(
-        petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions
-    )
+    petri_matrix = _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions)
 
     # Add an initial marking
     random_place = np.random.randint(0, num_places)
@@ -99,17 +97,13 @@ def delete_excess_edges(petri_matrix, num_transitions):
     for i in range(petri_matrix.shape[0]):  # Iterate over places
         if np.sum(petri_matrix[i, :-1]) >= 3:
             edge_indices = np.where(petri_matrix[i, :-1] == 1)[0]
-            indices_to_remove = np.random.choice(
-                edge_indices, len(edge_indices) - 2, replace=False
-            )
+            indices_to_remove = np.random.choice(edge_indices, len(edge_indices) - 2, replace=False)
             petri_matrix[i, indices_to_remove] = 0
 
     for i in range(2 * num_transitions):  # Iterate over transitions
         if np.sum(petri_matrix[:, i]) >= 3:
             edge_indices = np.where(petri_matrix[:, i] == 1)[0]
-            indices_to_remove = np.random.choice(
-                edge_indices, len(edge_indices) - 2, replace=False
-            )
+            indices_to_remove = np.random.choice(edge_indices, len(edge_indices) - 2, replace=False)
             petri_matrix[indices_to_remove, i] = 0
 
     return petri_matrix
@@ -129,7 +123,7 @@ def add_missing_connections(petri_matrix, num_transitions):
     pre_matrix = petri_matrix[:, :num_transitions]
     post_matrix = petri_matrix[:, num_transitions:-1]
 
-    zero_sum_cols = np.where(np.sum(petri_matrix[:, :2 * num_transitions], axis=0) == 0)[0]
+    zero_sum_cols = np.where(np.sum(petri_matrix[:, : 2 * num_transitions], axis=0) == 0)[0]
     random_rows = np.random.randint(0, petri_matrix.shape[0], size=len(zero_sum_cols))
     petri_matrix[random_rows, zero_sum_cols] = 1
 
