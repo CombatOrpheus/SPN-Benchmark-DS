@@ -91,7 +91,12 @@ def write_to_hdf5(group, data, compression="gzip", compression_opts=4):
 
             if np_value.ndim > 0:
                 group.create_dataset(
-                    key, data=np_value, shape=d_shape, dtype=d_type, compression=compression, compression_opts=compression_opts
+                    key,
+                    data=np_value,
+                    shape=d_shape,
+                    dtype=d_type,
+                    compression=compression,
+                    compression_opts=compression_opts,
                 )
             else:
                 group.create_dataset(key, data=np_value, shape=d_shape, dtype=d_type)
@@ -109,7 +114,9 @@ def setup_arg_parser():
 
     # General arguments
     general_group = parser.add_argument_group("General")
-    general_group.add_argument("--config", type=str, default="config/DataConfig/SPNGenerate.json", help="Path to config JSON.")
+    general_group.add_argument(
+        "--config", type=str, default="config/DataConfig/SPNGenerate.json", help="Path to config JSON."
+    )
     general_group.add_argument("--write_data_loc", type=str, help="Save directory.")
     general_group.add_argument("--output_file", type=str, help="Output HDF5 filename.")
     general_group.add_argument("--data_num", type=int, help="Number of samples.")
@@ -166,8 +173,7 @@ def main():
     if config.get("transformation_flag"):
         print("Augmenting samples...")
         augmented_lists = Parallel(n_jobs=config["parallel_job"], backend="loky")(
-            delayed(augment_single_spn)(sample, config)
-            for sample in tqdm(valid_samples, desc="Augmenting")
+            delayed(augment_single_spn)(sample, config) for sample in tqdm(valid_samples, desc="Augmenting")
         )
         for sample_list in augmented_lists:
             all_samples.extend(sample_list)

@@ -6,7 +6,7 @@ generating SPN tasks.
 
 from typing import List, Tuple, Dict, Any
 import numpy as np
-from scipy.sparse import csc_array, lil_matrix
+from scipy.sparse import csc_array, lil_matrix, csc_matrix
 from scipy.sparse.linalg import lsmr
 from DataGenerate import ArrivableGraph as ArrGra
 
@@ -48,9 +48,7 @@ def compute_state_equation(
     return state_matrix.tocsc(), target_vector
 
 
-def compute_average_markings(
-    vertices: np.ndarray, steady_state_probs: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the average number of tokens for each place.
 
     Args:
@@ -65,23 +63,17 @@ def compute_average_markings(
 
     unique_token_values = np.unique(vertices)
     num_places = vertices.shape[1]
-    marking_density_matrix = np.zeros(
-        (num_places, len(unique_token_values)), dtype=float
-    )
+    marking_density_matrix = np.zeros((num_places, len(unique_token_values)), dtype=float)
 
     for place_idx in range(num_places):
         for token_idx, token_val in enumerate(unique_token_values):
             states_with_token = vertices[:, place_idx] == token_val
-            marking_density_matrix[place_idx, token_idx] = np.sum(
-                steady_state_probs[states_with_token]
-            )
+            marking_density_matrix[place_idx, token_idx] = np.sum(steady_state_probs[states_with_token])
 
     return marking_density_matrix, avg_tokens_per_place
 
 
-def solve_for_steady_state(
-    state_matrix: csc_array, target_vector: np.ndarray
-) -> np.ndarray:
+def solve_for_steady_state(state_matrix: csc_array | csc_matrix, target_vector: np.ndarray) -> np.ndarray:
     """Solves for steady-state probabilities using LSMR."""
     try:
         lsmr_result = lsmr(
@@ -110,17 +102,13 @@ def _run_sgn_task(
         return None, None, None, False
 
     vertices_np = np.array(vertices, dtype=int)
-    state_matrix, target_vector = compute_state_equation(
-        vertices, edges, arc_transitions, transition_rates
-    )
+    state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, transition_rates)
     steady_state_probs = solve_for_steady_state(state_matrix, target_vector)
 
     if steady_state_probs is None:
         return None, None, None, False
 
-    marking_density, avg_markings = compute_average_markings(
-        vertices_np, steady_state_probs
-    )
+    marking_density, avg_markings = compute_average_markings(vertices_np, steady_state_probs)
     return steady_state_probs, marking_density, avg_markings, True
 
 
@@ -137,9 +125,7 @@ def generate_stochastic_net_task(
         firing rates, and a success flag.
     """
     transition_rates = np.random.randint(1, 11, size=num_transitions).astype(float)
-    probs, density, markings, success = _run_sgn_task(
-        vertices, edges, arc_transitions, transition_rates
-    )
+    probs, density, markings, success = _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
     return probs, density, markings, transition_rates, success
 
 
@@ -150,9 +136,7 @@ def generate_stochastic_net_task_with_rates(
     transition_rates: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with specified firing rates."""
-    return _run_sgn_task(
-        vertices, edges, arc_transitions, np.array(transition_rates, dtype=float)
-    )
+    return _run_sgn_task(vertices, edges, arc_transitions, np.array(transition_rates, dtype=float))
 
 
 def is_connected(petri_net_matrix: np.ndarray) -> bool:
@@ -194,9 +178,7 @@ def _create_spn_result_dict(
         "petri_net": petri_net_matrix,
         "arr_vlist": np.array(vertices, dtype=int),
         "arr_edge": np.array(edges, dtype=int) if edges else np.empty((0, 2), dtype=int),
-        "arr_tranidx": np.array(arc_transitions, dtype=int)
-        if arc_transitions
-        else np.empty((0,), dtype=int),
+        "arr_tranidx": np.array(arc_transitions, dtype=int) if arc_transitions else np.empty((0,), dtype=int),
         "spn_labda": firing_rates,
         "spn_steadypro": steady_state_probs,
         "spn_markdens": marking_densities,
@@ -225,9 +207,7 @@ def filter_spn(
         arc_transitions,
         num_transitions,
         is_bounded,
-    ) = ArrGra.generate_reachability_graph(
-        petri_net_matrix, place_upper_bound, marks_upper_limit
-    )
+    ) = ArrGra.generate_reachability_graph(petri_net_matrix, place_upper_bound, marks_upper_limit)
 
     if not is_bounded or not vertices or len(vertices) < marks_lower_limit:
         return {}, False
@@ -238,17 +218,13 @@ def filter_spn(
         markings,
         rates,
         success,
-    ) = generate_stochastic_net_task(
-        vertices, edges, arc_transitions, num_transitions
-    )
+    ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
 
     if not success or np.sum(markings) > 1000 or np.sum(markings) < -1000:
         return {}, False
 
     return (
-        _create_spn_result_dict(
-            petri_net_matrix, vertices, edges, arc_transitions, rates, probs, density, markings
-        ),
+        _create_spn_result_dict(petri_net_matrix, vertices, edges, arc_transitions, rates, probs, density, markings),
         True,
     )
 
@@ -269,9 +245,7 @@ def get_spn_info(
         density,
         markings,
         success,
-    ) = generate_stochastic_net_task_with_rates(
-        vertices, edges, arc_transitions, transition_rates
-    )
+    ) = generate_stochastic_net_task_with_rates(vertices, edges, arc_transitions, transition_rates)
 
     if not success:
         return {}, False

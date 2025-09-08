@@ -26,9 +26,7 @@ class GCNLayer(BasicLayers):
         batch_norm,
         residual=False,
     ):
-        super(GCNLayer, self).__init__(
-            in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual
-        )
+        super(GCNLayer, self).__init__(in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual)
         self.conv = GraphConv(in_dim, out_dim)
 
     def forward(self, g, feature, snorm_n):

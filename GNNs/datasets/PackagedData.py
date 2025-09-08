@@ -15,9 +15,7 @@ from utils import DataUtil as DU
 
 ds_idx = 3
 save_root = "/home/mingjian/Dataset/SPN/0904/RandData/DS%s/package_data" % str(ds_idx)
-data_root = "/home/mingjian/Dataset/SPN/0904/RandData/DS%s/preprocessd_data" % str(
-    ds_idx
-)
+data_root = "/home/mingjian/Dataset/SPN/0904/RandData/DS%s/preprocessd_data" % str(ds_idx)
 DU.mkdir(save_root)
 dataset = NetLearningDatasetDGL(data_root)
 

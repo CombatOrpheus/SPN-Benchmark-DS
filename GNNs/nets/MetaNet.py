@@ -86,9 +86,7 @@ class MetaNet(BasicNets):
         # h = self.embedding_h(h)
         # h = self.in_feat_dropout(h)
 
-        h_node = (
-            torch.zeros([g.number_of_nodes(), self.node_in_dim]).float().to(self.device)
-        )
+        h_node = torch.zeros([g.number_of_nodes(), self.node_in_dim]).float().to(self.device)
         h_edge = torch.zeros([g.number_of_edges(), self.h_dim]).float().to(self.device)
         src, dst = g.all_edges()
 
@@ -113,9 +111,7 @@ class MetaNet(BasicNets):
                         n_feat=x,
                     )
                 else:
-                    h_edge = edge_layer(
-                        g, src_feat=x[src], e_feat=e, h_feat=h_edge, snorm_e=snorm_e
-                    )
+                    h_edge = edge_layer(g, src_feat=x[src], e_feat=e, h_feat=h_edge, snorm_e=snorm_e)
                     h_node = node_layer(
                         g,
                         src_feat=x[src],
@@ -143,12 +139,8 @@ class MetaNet(BasicNets):
                         n_feat=x,
                     )
                 else:
-                    h_edge = edge_layer(
-                        g, src_feat=x[src], h_feat=h_edge, snorm_e=snorm_e
-                    )
-                    h_node = node_layer(
-                        g, src_feat=x[src], h_feat=h_node, snorm_e=snorm_e, n_feat=x
-                    )
+                    h_edge = edge_layer(g, src_feat=x[src], h_feat=h_edge, snorm_e=snorm_e)
+                    h_node = node_layer(g, src_feat=x[src], h_feat=h_node, snorm_e=snorm_e, n_feat=x)
 
         g.edata["h"] = h_edge
         if self.node_update:

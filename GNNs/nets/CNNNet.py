@@ -18,9 +18,7 @@ class CNNNet(BasicNets):
         super(CNNNet, self).__init__(net_params)
         self.out_dim = net_params["out_dim"]
         self.kernal_size = net_params["kernal_size"]
-        self.layers = nn.ModuleList(
-            [nn.Conv2d(1, self.h_dim, self.kernal_size, padding=2), nn.ReLU()]
-        )
+        self.layers = nn.ModuleList([nn.Conv2d(1, self.h_dim, self.kernal_size, padding=2), nn.ReLU()])
         for _ in range(self.n_layers - 2):
             self.layers.extend(
                 [

@@ -86,9 +86,7 @@ def sample_and_transform_data(config):
     all_data = []
     for i in range(config["p_upper_limit"]):
         for j in range(config["m_upper_limit"]):
-            sampled_list = DU.sample_json_files_from_directory(
-                config["each_grid_num"], grid_data_loc % (i + 1, j + 1)
-            )
+            sampled_list = DU.sample_json_files_from_directory(config["each_grid_num"], grid_data_loc % (i + 1, j + 1))
             all_data.extend(sampled_list)
 
     transformed_data = []
@@ -103,9 +101,7 @@ def package_dataset(save_dir, data):
     """Packages the processed data into a DGL dataset."""
     DU.create_directory(os.path.join(save_dir, "ori_data"))
     data_dict = DU.create_data_dictionary(data)
-    DU.save_data_to_json_file(
-        os.path.join(save_dir, "ori_data", "all_data.json"), data_dict
-    )
+    DU.save_data_to_json_file(os.path.join(save_dir, "ori_data", "all_data.json"), data_dict)
 
     DU.partition_datasets(save_dir, 16, 0.2)
 
@@ -122,9 +118,7 @@ def main():
     """Main function to generate the grid dataset."""
     config = DU.load_json_file("config/DataConfig/PartitionGrid.json")
 
-    partition_data_into_grid(
-        config["tmp_grid_loc"], config["accumulation_data"], config["raw_data_loc"]
-    )
+    partition_data_into_grid(config["tmp_grid_loc"], config["accumulation_data"], config["raw_data_loc"])
 
     processed_data = sample_and_transform_data(config)
 

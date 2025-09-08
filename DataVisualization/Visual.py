@@ -59,9 +59,7 @@ def plot_petri_net(petri_net_matrix, output_filepath):
         print(f"Error rendering Petri net: {e}")
 
 
-def plot_reachability_graph(
-    vertices, edges, arc_transitions, output_filepath
-):
+def plot_reachability_graph(vertices, edges, arc_transitions, output_filepath):
     """Generates a visualization of a reachability graph.
 
     Args:
@@ -128,9 +126,7 @@ def plot_stochastic_petri_net(
         label = f"t{arc_transition+1} [{lambda_values[int(arc_transition)]}]"
         graph.edge(src, dest, label=label)
 
-    metrics_label = _format_metrics_label(
-        steady_state_vector, token_density, avg_token_count
-    )
+    metrics_label = _format_metrics_label(steady_state_vector, token_density, avg_token_count)
     graph.attr(label=metrics_label, fontsize="20")
     graph.format = "png"
     try:
@@ -172,9 +168,7 @@ def visualize_dataset(all_graph_data, output_dir, num_parallel_jobs):
         num_parallel_jobs (int): The number of parallel jobs to run.
     """
     Parallel(n_jobs=num_parallel_jobs)(
-        delayed(save_visualizations_for_instance)(
-            graph_data, output_dir, i + 1
-        )
+        delayed(save_visualizations_for_instance)(graph_data, output_dir, i + 1)
         for i, graph_data in enumerate(all_graph_data.values())
     )
     print("Image saving process initiated successfully!")

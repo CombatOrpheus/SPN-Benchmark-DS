@@ -26,13 +26,9 @@ class MPNN_Layer(BasicLayers):
         batch_norm,
         residual=False,
     ):
-        super(MPNN_Layer, self).__init__(
-            in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual
-        )
+        super(MPNN_Layer, self).__init__(in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual)
 
-    def forward(
-        self, g, src_feat=None, dst_feat=None, e_feat=None, h_feat=None, snorm_e=None
-    ):
+    def forward(self, g, src_feat=None, dst_feat=None, e_feat=None, h_feat=None, snorm_e=None):
         h_in = h_feat  # to be used for residual connection
         g.edata["h"] = h_in
         g.update_all(message, reduce)
