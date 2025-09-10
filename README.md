@@ -254,11 +254,11 @@ In addition to the JSON format, this project includes functionality to generate 
 
 #### Generating HDF5 Datasets
 
-The `SPNGenerate.py` script can be used to generate datasets in the HDF5 format. The script is controlled by a configuration file, `config/DataConfig/SPNGenerate.json`.
+The `SPNGenerate.py` script can be used to generate datasets in the HDF5 format. The script is controlled by a configuration file, `config/DataConfig/SPNGenerate.toml`.
 
 To generate a dataset, you can run the following command:
 ```bash
-python SPNGenerate.py --config /path/to/your/config.json
+python SPNGenerate.py --config /path/to/your/config.toml
 ```
 This will create an HDF5 file named `spn_dataset.hdf5` in the location specified in the configuration file. The data is stored with `gzip` compression to ensure space efficiency.
 

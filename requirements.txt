@@ -27,3 +27,4 @@ xlutils
 
 # Build-time dependency
 Cython
+toml

@@ -1,0 +1,15 @@
+output_data_location = "Data/SPNOriData/data1/"
+place_upper_bound = 10
+marks_lower_limit = 4
+marks_upper_limit = 50
+number_of_parallel_jobs = 20
+number_of_samples_to_generate = 30000
+enable_pruning = true
+enable_token_addition = true
+maximum_number_of_places = 15
+minimum_number_of_places = 5
+enable_visualization = false
+visualization_output_location = "Pic"
+enable_transformations = false
+maximum_transformations_per_sample = 100
+output_file = "spn_dataset.hdf5"
