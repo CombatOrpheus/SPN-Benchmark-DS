@@ -103,9 +103,7 @@ def package_dataset(save_dir, data):
     """Packages the processed data into a DGL dataset."""
     DU.create_directory(os.path.join(save_dir, "ori_data"))
     data_dict = DU.create_data_dictionary(data)
-    DU.save_data_to_json_file(
-        os.path.join(save_dir, "ori_data", "all_data.json"), data_dict
-    )
+    DU.save_data_to_json_file(os.path.join(save_dir, "ori_data", "all_data.json"), data_dict)
 
     DU.partition_datasets(save_dir, 16, 0.2)
 

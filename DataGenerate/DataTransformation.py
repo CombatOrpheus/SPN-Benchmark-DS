@@ -114,9 +114,7 @@ def generate_petri_net_variations(
     candidate_matrices = _generate_candidate_matrices(base_petri_matrix)
 
     results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_stochastic_petri_net)(
-            matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-        )
+        delayed(SPN.filter_stochastic_petri_net)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
         for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
@@ -125,9 +123,7 @@ def generate_petri_net_variations(
     all_augmented_data.extend(structural_variations)
 
     for base_variation in structural_variations:
-        rate_variations = _generate_rate_variations(
-            base_variation, num_rate_variations_per_structure
-        )
+        rate_variations = _generate_rate_variations(base_variation, num_rate_variations_per_structure)
         all_augmented_data.extend(rate_variations)
 
     return all_augmented_data

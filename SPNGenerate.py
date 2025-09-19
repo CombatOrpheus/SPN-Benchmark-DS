@@ -91,13 +91,35 @@ def write_to_hdf5(group, data, compression="gzip", compression_opts=4):
 
             if np_value.ndim > 0:
                 group.create_dataset(
-                    key, data=np_value, shape=d_shape, dtype=d_type, compression=compression, compression_opts=compression_opts
+                    key,
+                    data=np_value,
+                    shape=d_shape,
+                    dtype=d_type,
+                    compression=compression,
+                    compression_opts=compression_opts,
                 )
             else:
                 group.create_dataset(key, data=np_value, shape=d_shape, dtype=d_type)
 
         except (TypeError, ValueError) as e:
             print(f"Warning: Could not save key '{key}' for sample {group.name}. Error: {e}")
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom encoder for numpy data types."""
+
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.floating, np.bool_)):
+            return obj.item()
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
+
+def write_to_jsonl(file_handler, data):
+    """Appends a sample to a JSONL file, ensuring numpy compatibility."""
+    json_line = json.dumps(data, cls=NumpyEncoder)
+    file_handler.write(json_line + "\n")
 
 
 def setup_arg_parser():
@@ -109,9 +131,12 @@ def setup_arg_parser():
 
     # General arguments
     general_group = parser.add_argument_group("General")
-    general_group.add_argument("--config", type=str, default="config/DataConfig/SPNGenerate.toml", help="Path to config TOML file.")
+    general_group.add_argument(
+        "--config", type=str, default="config/DataConfig/SPNGenerate.toml", help="Path to config TOML file."
+    )
     general_group.add_argument("--output_data_location", type=str, help="Save directory.")
-    general_group.add_argument("--output_file", type=str, help="Output HDF5 filename.")
+    general_group.add_argument("--output_file", type=str, help="Output filename.")
+    general_group.add_argument("--output_format", type=str, choices=["hdf5", "jsonl"], help="Output file format.")
     general_group.add_argument("--number_of_samples_to_generate", type=int, help="Number of samples.")
     general_group.add_argument("--number_of_parallel_jobs", type=int, help="Number of parallel jobs.")
 
@@ -131,7 +156,9 @@ def setup_arg_parser():
     # Transformation arguments
     transformation_group = parser.add_argument_group("Transformation")
     transformation_group.add_argument("--enable_transformations", action="store_true", help="Enable augmentation.")
-    transformation_group.add_argument("--maximum_transformations_per_sample", type=int, help="Max number of transformations.")
+    transformation_group.add_argument(
+        "--maximum_transformations_per_sample", type=int, help="Max number of transformations."
+    )
 
     return parser
 
@@ -151,9 +178,10 @@ def main():
     args = parser.parse_args()
     config = load_config(args)
 
-    output_dir = os.path.join(config["output_data_location"], "data_hdf5")
+    output_format = config.get("output_format", "hdf5")  # Default to hdf5
+    output_dir = os.path.join(config["output_data_location"], f"data_{output_format}")
     DU.create_directory(output_dir)
-    hdf5_path = os.path.join(output_dir, config["output_file"])
+    output_path = os.path.join(output_dir, config["output_file"])
 
     print(f"Generating {config['number_of_samples_to_generate']} initial SPN samples...")
     initial_samples = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
@@ -166,26 +194,31 @@ def main():
     if config.get("enable_transformations"):
         print("Augmenting samples...")
         augmented_lists = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
-            delayed(augment_single_spn)(sample, config)
-            for sample in tqdm(valid_samples, desc="Augmenting")
+            delayed(augment_single_spn)(sample, config) for sample in tqdm(valid_samples, desc="Augmenting")
         )
         for sample_list in augmented_lists:
             all_samples.extend(sample_list)
     else:
         all_samples = valid_samples
 
-    with h5py.File(hdf5_path, "w") as hf:
-        hf.attrs["generation_config"] = json.dumps(config)
-        dataset_group = hf.create_group("dataset_samples")
+    if output_format == "hdf5":
+        with h5py.File(output_path, "w") as hf:
+            hf.attrs["generation_config"] = json.dumps(config, cls=NumpyEncoder)
+            dataset_group = hf.create_group("dataset_samples")
 
-        print(f"Writing {len(all_samples)} samples to HDF5...")
-        for i, sample in enumerate(tqdm(all_samples, desc="Writing to HDF5")):
-            sample_group = dataset_group.create_group(f"sample_{i:07d}")
-            write_to_hdf5(sample_group, sample)
+            print(f"Writing {len(all_samples)} samples to HDF5...")
+            for i, sample in enumerate(tqdm(all_samples, desc="Writing to HDF5")):
+                sample_group = dataset_group.create_group(f"sample_{i:07d}")
+                write_to_hdf5(sample_group, sample)
+            hf.attrs["total_samples_written"] = len(all_samples)
+        print(f"HDF5 file '{output_path}' created successfully.")
 
-        hf.attrs["total_samples_written"] = len(all_samples)
-
-    print(f"HDF5 file '{hdf5_path}' created successfully.")
+    elif output_format == "jsonl":
+        with open(output_path, "w") as f:
+            f.write(json.dumps(config, cls=NumpyEncoder) + "\n")
+            for sample in tqdm(all_samples, desc="Writing to JSONL"):
+                write_to_jsonl(f, sample)
+        print(f"JSONL file '{output_path}' created successfully.")
 
 
 if __name__ == "__main__":

@@ -29,9 +29,7 @@ class Meta_Edge_Layer(BasicLayers):
         residual=False,
         dgl_builtin=False,
     ):
-        super(Meta_Edge_Layer, self).__init__(
-            in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual
-        )
+        super(Meta_Edge_Layer, self).__init__(in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual)
 
     def forward(
         self,
@@ -90,9 +88,7 @@ class Meta_Node_Layer(BasicLayers):
         batch_norm,
         residual=False,
     ):
-        super(Meta_Node_Layer, self).__init__(
-            in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual
-        )
+        super(Meta_Node_Layer, self).__init__(in_dim, out_dim, activation, dropout, graph_norm, batch_norm, residual)
 
     def forward(
         self,

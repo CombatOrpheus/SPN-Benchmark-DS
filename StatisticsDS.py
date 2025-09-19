@@ -37,9 +37,7 @@ def count_data_distribution(data, row_boundaries, col_boundaries):
     Returns:
         np.ndarray: A 2D array representing the distribution count.
     """
-    distribution_count = np.zeros(
-        (len(row_boundaries), len(col_boundaries)), dtype=int
-    )
+    distribution_count = np.zeros((len(row_boundaries), len(col_boundaries)), dtype=int)
     for item in data.values():
         num_places = len(item["petri_net"])
         num_markings = len(item["arr_vlist"])
@@ -49,9 +47,7 @@ def count_data_distribution(data, row_boundaries, col_boundaries):
     return distribution_count
 
 
-def save_statistics_to_excel(
-    save_dir, dataset_name, row_boundaries, col_boundaries, distribution_count
-):
+def save_statistics_to_excel(save_dir, dataset_name, row_boundaries, col_boundaries, distribution_count):
     """Saves the dataset statistics to an Excel file.
 
     Args:
@@ -92,9 +88,7 @@ def main():
     print("Data Distribution:")
     print(total_distribution)
 
-    save_statistics_to_excel(
-        save_dir, dataset_name, row_boundaries, col_boundaries, total_distribution
-    )
+    save_statistics_to_excel(save_dir, dataset_name, row_boundaries, col_boundaries, total_distribution)
 
     print(f"Total number of data points: {np.sum(total_distribution)}")
 

@@ -17,9 +17,7 @@ from GNNs.nets.BasicMLPs import BasicNets
 class MLPNet(BasicNets):
     def __init__(self, net_params):
         super(MLPNet, self).__init__(net_params)
-        self.layers = nn.ModuleList(
-            [nn.Linear(self.node_in_dim, self.h_dim), nn.ReLU()]
-        )
+        self.layers = nn.ModuleList([nn.Linear(self.node_in_dim, self.h_dim), nn.ReLU()])
         for _ in range(self.n_layers - 2):
             self.layers.extend([nn.Linear(self.h_dim, self.h_dim), nn.ReLU()])
         # self.layers.extend([nn.Linear(self.h_dim,1)])

@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 
+
 class SPNDataReader:
     """
     A reader class for the SPN HDF5 datasets.
@@ -13,18 +14,19 @@ class SPNDataReader:
     Args:
         hdf5_path (str): The path to the HDF5 file.
     """
+
     def __init__(self, hdf5_path):
         self.hdf5_path = hdf5_path
         self._file = None
         self._sample_keys = None
 
     def __enter__(self):
-        self._file = h5py.File(self.hdf5_path, 'r')
+        self._file = h5py.File(self.hdf5_path, "r")
         # The samples are stored in the 'dataset_samples' group
-        if 'dataset_samples' not in self._file:
+        if "dataset_samples" not in self._file:
             raise ValueError("HDF5 file does not contain 'dataset_samples' group.")
         # Sorting the keys to ensure a consistent order
-        self._sample_keys = sorted(self._file['dataset_samples'].keys())
+        self._sample_keys = sorted(self._file["dataset_samples"].keys())
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -36,9 +38,9 @@ class SPNDataReader:
     def __len__(self):
         """Returns the total number of samples in the dataset."""
         if self._sample_keys is None:
-            with h5py.File(self.hdf5_path, 'r') as hf:
-                if 'dataset_samples' in hf:
-                    return len(hf['dataset_samples'])
+            with h5py.File(self.hdf5_path, "r") as hf:
+                if "dataset_samples" in hf:
+                    return len(hf["dataset_samples"])
                 else:
                     return 0
         return len(self._sample_keys)
@@ -59,13 +61,13 @@ class SPNDataReader:
         if self._file is None:
             # This allows for accessing samples without using a 'with' block,
             # but it's less efficient if getting many samples individually.
-            with h5py.File(self.hdf5_path, 'r') as hf:
-                sample_name = sorted(hf['dataset_samples'].keys())[index]
-                sample_group = hf['dataset_samples'][sample_name]
+            with h5py.File(self.hdf5_path, "r") as hf:
+                sample_name = sorted(hf["dataset_samples"].keys())[index]
+                sample_group = hf["dataset_samples"][sample_name]
                 return {key: value[()] for key, value in sample_group.items()}
 
         sample_name = self._sample_keys[index]
-        sample_group = self._file['dataset_samples'][sample_name]
+        sample_group = self._file["dataset_samples"][sample_name]
         return {key: value[()] for key, value in sample_group.items()}
 
     def __iter__(self):

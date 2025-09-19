@@ -37,7 +37,7 @@ def load_json_file(file_path):
     Returns:
         dict: The data loaded from the JSON file.
     """
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         return json.load(f)
 
 
@@ -50,7 +50,7 @@ def load_toml_file(file_path):
     Returns:
         dict: The data loaded from the TOML file.
     """
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         return toml.load(f)
 
 
@@ -183,7 +183,7 @@ def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
     node_unit = []
     for row in value["arr_vlist"]:
         row_n = np.zeros(node_feature_num)
-        row_n[:len(row)] = row
+        row_n[: len(row)] = row
         node_unit.append(row_n.tolist())
 
     arrivable_dict["node_f"] = node_unit
@@ -295,9 +295,7 @@ def partition_datasets(json_data_directory, node_feature_num, test_ratio=0.2):
     all_data_path = os.path.join(original_data_dir, "all_data.json")
     all_data = load_json_file(all_data_path)
 
-    train_data, test_data = train_test_split(
-        list(all_data.values()), test_size=test_ratio, random_state=0
-    )
+    train_data, test_data = train_test_split(list(all_data.values()), test_size=test_ratio, random_state=0)
 
     train_data_dict = create_data_dictionary(train_data)
     test_data_dict = create_data_dictionary(test_data)
