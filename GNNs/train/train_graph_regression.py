@@ -25,18 +25,14 @@ def train_epoch(model, optimizer, device, data_loader, epoch):
     nb_data = 0
     gpu_mem = 0
 
-    for iter, (batch_graphs, batch_targets, batch_snorm_n, batch_snorm_e) in enumerate(
-        data_loader
-    ):
+    for iter, (batch_graphs, batch_targets, batch_snorm_n, batch_snorm_e) in enumerate(data_loader):
         batch_x = batch_graphs.ndata["feat"].to(device)  # num x feat
         batch_e = batch_graphs.edata["feat"].to(device)
         batch_snorm_e = batch_snorm_e.to(device)
         batch_targets = batch_targets.to(device)
         batch_snorm_n = batch_snorm_n.to(device)  # num x 1
         optimizer.zero_grad()
-        batch_scores = model.forward(
-            batch_graphs, batch_x, batch_e, batch_snorm_n, batch_snorm_e
-        )
+        batch_scores = model.forward(batch_graphs, batch_x, batch_e, batch_snorm_n, batch_snorm_e)
         loss = model.loss(batch_scores, batch_targets)
         loss.backward()
         optimizer.step()
@@ -70,9 +66,7 @@ def evaluate_network(model, device, data_loader, epoch):
             batch_snorm_e = batch_snorm_e.to(device)
             batch_targets = batch_targets.to(device)
             batch_snorm_n = batch_snorm_n.to(device)
-            batch_scores = model.forward(
-                batch_graphs, batch_x, batch_e, batch_snorm_n, batch_snorm_e
-            )
+            batch_scores = model.forward(batch_graphs, batch_x, batch_e, batch_snorm_n, batch_snorm_e)
             loss = model.loss(batch_scores, batch_targets)
             epoch_test_loss += loss.detach().item()
             epoch_test_mae += MAE(batch_scores, batch_targets).detach().item()

@@ -106,13 +106,22 @@ def train_and_evaluate(model, train_loader, test_loader, optimizer, scheduler, d
     final_train_mae, final_train_err = evaluate_network(model, device, train_loader, epoch)
     final_test_mae, final_test_err = evaluate_network(model, device, test_loader, epoch)
 
-    return final_train_mae, final_train_err, final_test_mae, final_test_err, time.time() - start_time, np.mean(per_epoch_time)
+    return (
+        final_train_mae,
+        final_train_err,
+        final_test_mae,
+        final_test_err,
+        time.time() - start_time,
+        np.mean(per_epoch_time),
+    )
 
 
 def main():
     """Main function to run the training pipeline."""
     parser = argparse.ArgumentParser(description="GNN Training for Graph Regression")
-    parser.add_argument("--config", default="config/GNNConfig/GridData/SPN_MLP_Regression.json", help="Path to config file.")
+    parser.add_argument(
+        "--config", default="config/GNNConfig/GridData/SPN_MLP_Regression.json", help="Path to config file."
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -133,7 +142,9 @@ def main():
     dataset = NetLearningDatasetDGL(data_dir)
     dataset.name = dataset_name
 
-    log_dir, ckpt_dir, result_file, config_file = get_output_dirs(out_dir, model_name, dataset_name, config["gpu"]["id"])
+    log_dir, ckpt_dir, result_file, config_file = get_output_dirs(
+        out_dir, model_name, dataset_name, config["gpu"]["id"]
+    )
 
     net_params["total_param"] = get_model_params(model_name, net_params)
     write_config_to_file(config_file, dataset_name, model_name, params, net_params)

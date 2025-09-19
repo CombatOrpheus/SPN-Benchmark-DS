@@ -98,9 +98,7 @@ def _update_graph(
     return marking_index_counter, False
 
 
-def generate_reachability_graph(
-    incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500
-):
+def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
     """Generates the reachability graph of a Petri net using BFS.
 
     Args:
