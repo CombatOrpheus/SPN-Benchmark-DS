@@ -3,7 +3,7 @@ name = "SPN-Benchmarks"
 version = "0.1.0"
 description = "A project for generating and benchmarking Stochastic Petri Nets."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = "MIT"
 
 dependencies = [
@@ -43,4 +43,4 @@ dev = [
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = ["py311"]
