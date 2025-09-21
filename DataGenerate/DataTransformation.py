@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 from DataGenerate import SPN
 
 
-def _generate_candidate_matrices(base_petri_matrix, max_candidates=50):
+def _generate_candidate_matrices(base_petri_matrix):
     """Generates candidate Petri net matrices by applying various transformations."""
     candidate_matrices = []
     num_places, num_cols = base_petri_matrix.shape
@@ -52,10 +52,6 @@ def _generate_candidate_matrices(base_petri_matrix, max_candidates=50):
         modified_matrix = np.vstack([base_petri_matrix, new_place_row])
         candidate_matrices.append(modified_matrix)
 
-    if len(candidate_matrices) > max_candidates:
-        indices = np.random.choice(len(candidate_matrices), max_candidates, replace=False)
-        candidate_matrices = [candidate_matrices[i] for i in indices]
-
     return candidate_matrices
 
 
@@ -69,7 +65,7 @@ def _generate_rate_variations(base_variation, num_variations):
 
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
-        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
+        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_graphical_net_task_with_given_rates(
             [v for v in base_variation["arr_vlist"]],
             base_variation["arr_edge"].tolist(),
             base_variation["arr_tranidx"].tolist(),
@@ -99,7 +95,6 @@ def generate_petri_net_variations(
     marks_upper_limit,
     parallel_job_count=1,
     num_rate_variations_per_structure=5,
-    max_candidates_per_structure=50,
 ):
     """Generates variations of a Petri net to augment the dataset.
 
@@ -111,17 +106,15 @@ def generate_petri_net_variations(
         parallel_job_count (int, optional): The number of parallel jobs to run. Defaults to 1.
         num_rate_variations_per_structure (int, optional): The number of firing rate
             variations to generate for each valid structure. Defaults to 5.
-        max_candidates_per_structure (int, optional): The maximum number of candidate
-            structures to generate from a single base matrix. Defaults to 50.
 
     Returns:
         list: A list of dictionaries, each representing an augmented Petri net.
     """
     base_petri_matrix = np.array(petri_matrix)
-    candidate_matrices = _generate_candidate_matrices(base_petri_matrix, max_candidates=max_candidates_per_structure)
+    candidate_matrices = _generate_candidate_matrices(base_petri_matrix)
 
     results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_spn)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
+        delayed(SPN.filter_stochastic_petri_net)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
         for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
@@ -152,7 +145,7 @@ def generate_lambda_variations(petri_dict, num_lambda_variations):
 
     while len(lambda_variations) < num_lambda_variations:
         lambda_values = np.random.randint(1, 11, size=num_transitions)
-        results_dict, success = SPN.get_spn_info(
+        results_dict, success = SPN.get_stochastic_petri_net(
             petri_net,
             petri_dict["arr_vlist"],
             petri_dict["arr_edge"],
