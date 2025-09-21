@@ -119,9 +119,7 @@ def generate_petri_net_variations(
         candidate_matrices = candidate_matrices[:max_candidates_per_structure]
 
     results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_spn)(
-            matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
-        )
+        delayed(SPN.filter_spn)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
         for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
