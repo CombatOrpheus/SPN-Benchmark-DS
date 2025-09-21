@@ -7,7 +7,7 @@ generating SPN tasks.
 from typing import List, Tuple, Dict, Any
 import numpy as np
 from scipy.sparse import csc_array, lil_matrix
-from scipy.sparse.linalg import lsmr
+from scipy.sparse.linalg import lsmr, spsolve
 from DataGenerate import ArrivableGraph as ArrGra
 
 
@@ -73,29 +73,42 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
     return marking_density_matrix, avg_tokens_per_place
 
 
-def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
-    """Solves for steady-state probabilities using LSMR."""
+def solve_for_steady_state(
+    state_matrix: csc_array, target_vector: np.ndarray, solver_config: Dict[str, Any] = None
+) -> np.ndarray:
+    """Solves for steady-state probabilities using a configurable solver."""
+    if solver_config is None:
+        solver_config = {"solver": "lsmr", "params": {"atol": 1e-7, "btol": 1e-7}}
+
+    solver = solver_config.get("solver", "lsmr")
+
     try:
-        lsmr_result = lsmr(
-            state_matrix,
-            target_vector,
-            atol=1e-7,
-            btol=1e-7,
-            conlim=1e7,
-            maxiter=None,
-        )
-        if lsmr_result[1] in [1, 2]:
-            probs = lsmr_result[0]
-            probs[probs < 0] = 0
-            prob_sum = np.sum(probs)
-            return probs / prob_sum if prob_sum > 1e-9 else None
+        if solver == "lsmr":
+            lsmr_params = solver_config.get("params", {"atol": 1e-7, "btol": 1e-7})
+            lsmr_result = lsmr(state_matrix, target_vector, **lsmr_params)
+            if lsmr_result[1] in [1, 2]:
+                probs = lsmr_result[0]
+            else:
+                return None
+        elif solver == "spsolve":
+            # spsolve requires a square matrix
+            if state_matrix.shape[0] != state_matrix.shape[1]:
+                return None
+            probs = spsolve(state_matrix, target_vector)
+        else:
+            raise ValueError(f"Unknown solver: {solver}")
+
+        probs[probs < 0] = 0
+        prob_sum = np.sum(probs)
+        return probs / prob_sum if prob_sum > 1e-9 else None
+
     except (np.linalg.LinAlgError, ValueError):
         pass
     return None
 
 
 def _run_sgn_task(
-    vertices, edges, arc_transitions, transition_rates
+    vertices, edges, arc_transitions, transition_rates, solver_config: Dict[str, Any] = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Helper to run a single SGN task."""
     if not vertices:
@@ -103,7 +116,7 @@ def _run_sgn_task(
 
     vertices_np = np.array(vertices, dtype=int)
     state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, transition_rates)
-    steady_state_probs = solve_for_steady_state(state_matrix, target_vector)
+    steady_state_probs = solve_for_steady_state(state_matrix, target_vector, solver_config)
 
     if steady_state_probs is None:
         return None, None, None, False
@@ -117,6 +130,7 @@ def generate_stochastic_net_task(
     edges: List[List[int]],
     arc_transitions: List[int],
     num_transitions: int,
+    solver_config: Dict[str, Any] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with random firing rates.
 
@@ -125,7 +139,9 @@ def generate_stochastic_net_task(
         firing rates, and a success flag.
     """
     transition_rates = np.random.randint(1, 11, size=num_transitions).astype(float)
-    probs, density, markings, success = _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
+    probs, density, markings, success = _run_sgn_task(
+        vertices, edges, arc_transitions, transition_rates, solver_config
+    )
     return probs, density, markings, transition_rates, success
 
 
@@ -134,9 +150,12 @@ def generate_stochastic_net_task_with_rates(
     edges: List[List[int]],
     arc_transitions: List[int],
     transition_rates: np.ndarray,
+    solver_config: Dict[str, Any] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with specified firing rates."""
-    return _run_sgn_task(vertices, edges, arc_transitions, np.array(transition_rates, dtype=float))
+    return _run_sgn_task(
+        vertices, edges, arc_transitions, np.array(transition_rates, dtype=float), solver_config
+    )
 
 
 def is_connected(petri_net_matrix: np.ndarray) -> bool:
@@ -192,6 +211,7 @@ def filter_spn(
     place_upper_bound: int = 10,
     marks_lower_limit: int = 4,
     marks_upper_limit: int = 500,
+    solver_config: Dict[str, Any] = None,
 ) -> Tuple[Dict[str, Any], bool]:
     """Filters an SPN based on reachability and other criteria.
 
@@ -218,7 +238,7 @@ def filter_spn(
         markings,
         rates,
         success,
-    ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
+    ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions, solver_config)
 
     if not success or np.sum(markings) > 1000 or np.sum(markings) < -1000:
         return {}, False
@@ -235,6 +255,7 @@ def get_spn_info(
     edges: List[List[int]],
     arc_transitions: List[int],
     transition_rates: np.ndarray,
+    solver_config: Dict[str, Any] = None,
 ) -> Tuple[Dict[str, Any], bool]:
     """Retrieves SPN info for a given structure and rates."""
     if not is_connected(petri_net_matrix) or not vertices:
@@ -245,7 +266,9 @@ def get_spn_info(
         density,
         markings,
         success,
-    ) = generate_stochastic_net_task_with_rates(vertices, edges, arc_transitions, transition_rates)
+    ) = generate_stochastic_net_task_with_rates(
+        vertices, edges, arc_transitions, transition_rates, solver_config
+    )
 
     if not success:
         return {}, False
