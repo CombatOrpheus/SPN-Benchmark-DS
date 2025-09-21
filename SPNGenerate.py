@@ -69,6 +69,7 @@ def augment_single_spn(sample, config):
         config["marks_lower_limit"],
         config["marks_upper_limit"],
         config["number_of_parallel_jobs"],
+        max_candidates_per_structure=config.get("max_candidates_per_structure", 50),
     )
 
     if not augmented_data:
@@ -158,6 +159,9 @@ def setup_arg_parser():
     transformation_group.add_argument("--enable_transformations", action="store_true", help="Enable augmentation.")
     transformation_group.add_argument(
         "--maximum_transformations_per_sample", type=int, help="Max number of transformations."
+    )
+    transformation_group.add_argument(
+        "--max_candidates_per_structure", type=int, help="Max number of candidate structures to generate."
     )
 
     return parser
