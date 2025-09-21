@@ -1,0 +1,7 @@
+[run]
+source = DataGenerate
+omit =
+    */__init__.py
+
+[report]
+show_missing = True
