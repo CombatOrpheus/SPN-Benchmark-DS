@@ -6,10 +6,25 @@ generating SPN tasks.
 
 from typing import List, Tuple, Dict, Any
 import numpy as np
+import numba
 from scipy.sparse import csc_array, lil_matrix
 from scipy.sparse.linalg import lsmr
 from DataGenerate import ArrivableGraph as ArrGra
 
+
+@numba.jit(nopython=True, cache=True)
+def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
+    """Numba-optimized core of compute_state_equation."""
+    state_matrix = np.zeros((num_vertices + 1, num_vertices), dtype=np.float64)
+    for i in range(len(edges)):
+        edge = edges[i]
+        trans_idx = arc_transitions[i]
+        src_idx, dest_idx = edge[0], edge[1]
+        rate = lambda_values[trans_idx]
+        state_matrix[src_idx, src_idx] -= rate
+        state_matrix[dest_idx, src_idx] += rate
+    state_matrix[num_vertices, :] = 1.0
+    return state_matrix
 
 def compute_state_equation(
     vertices: List[np.ndarray],
@@ -30,24 +45,22 @@ def compute_state_equation(
         and the target vector.
     """
     num_vertices = len(vertices)
-    # Use LIL format for efficient construction
-    state_matrix = lil_matrix((num_vertices + 1, num_vertices), dtype=float)
 
-    for edge, trans_idx in zip(edges, arc_transitions):
-        src_idx, dest_idx = edge
-        rate = lambda_values[trans_idx]
-        state_matrix[src_idx, src_idx] -= rate
-        state_matrix[dest_idx, src_idx] += rate
+    # Use Numba-optimized function for the core computation
+    state_matrix_np = _compute_state_equation_numba(
+        num_vertices, np.array(edges), np.array(arc_transitions), lambda_values
+    )
 
-    # Add constraint that probabilities sum to 1
-    state_matrix[num_vertices, :] = 1.0
+    # Convert the NumPy array to a sparse matrix
+    state_matrix = csc_array(state_matrix_np)
 
     target_vector = np.zeros(num_vertices + 1, dtype=float)
     target_vector[num_vertices] = 1.0
 
-    return state_matrix.tocsc(), target_vector
+    return state_matrix, target_vector
 
 
+@numba.jit(nopython=True, cache=True)
 def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the average number of tokens for each place.
 
@@ -75,21 +88,26 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
     """Solves for steady-state probabilities using LSMR."""
+    num_vertices = state_matrix.shape[1]
     try:
         lsmr_result = lsmr(
             state_matrix,
             target_vector,
-            atol=1e-7,
-            btol=1e-7,
+            atol=1e-6,
+            btol=1e-6,
             conlim=1e7,
-            maxiter=None,
+            maxiter=100 * num_vertices,
         )
+        # Check for convergence (istop=1 or istop=2)
         if lsmr_result[1] in [1, 2]:
             probs = lsmr_result[0]
+            # Normalize probabilities to sum to 1
             probs[probs < 0] = 0
             prob_sum = np.sum(probs)
-            return probs / prob_sum if prob_sum > 1e-9 else None
+            if prob_sum > 1e-9:
+                return probs / prob_sum
     except (np.linalg.LinAlgError, ValueError):
+        # Handle potential numerical issues
         pass
     return None
 
