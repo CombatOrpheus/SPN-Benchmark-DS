@@ -28,9 +28,9 @@ def generate_single_spn(config):
     max_attempts = 100
     for _ in range(max_attempts):
         place_num = np.random.randint(config["minimum_number_of_places"], config["maximum_number_of_places"] + 1)
-        trans_offset = -3 if place_num > 3 else 1 - place_num
-        trans_num = place_num + np.random.randint(trans_offset, 1)
-        trans_num = max(1, trans_num)
+        trans_num = np.random.randint(
+            config["minimum_number_of_transitions"], config["maximum_number_of_transitions"] + 1
+        )
 
         petri_matrix = PeGen.generate_random_petri_net(place_num, trans_num)
         if config.get("enable_pruning"):
@@ -144,6 +144,8 @@ def setup_arg_parser():
     spn_structure_group = parser.add_argument_group("SPN Structure")
     spn_structure_group.add_argument("--minimum_number_of_places", type=int, help="Min number of places.")
     spn_structure_group.add_argument("--maximum_number_of_places", type=int, help="Max number of places.")
+    spn_structure_group.add_argument("--minimum_number_of_transitions", type=int, help="Min number of transitions.")
+    spn_structure_group.add_argument("--maximum_number_of_transitions", type=int, help="Max number of transitions.")
     spn_structure_group.add_argument("--place_upper_bound", type=int, help="Upper bound for places.")
     spn_structure_group.add_argument("--marks_lower_limit", type=int, help="Lower limit for markings.")
     spn_structure_group.add_argument("--marks_upper_limit", type=int, help="Upper limit for markings.")

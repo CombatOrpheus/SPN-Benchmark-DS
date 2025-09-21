@@ -26,6 +26,7 @@ def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_v
     state_matrix[num_vertices, :] = 1.0
     return state_matrix
 
+
 def compute_state_equation(
     vertices: List[np.ndarray],
     edges: List[List[int]],
