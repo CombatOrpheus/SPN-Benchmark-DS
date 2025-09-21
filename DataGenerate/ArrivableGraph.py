@@ -5,8 +5,10 @@ using Breadth-First Search (BFS) and optimized marking lookup.
 
 from collections import deque
 import numpy as np
+import numba
 
 
+@numba.jit(nopython=True, cache=True)
 def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector):
     """Identifies enabled transitions and calculates the resulting markings.
 
@@ -20,14 +22,20 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
             - numpy.ndarray: Markings resulting from firing enabled transitions.
             - numpy.ndarray: Indices of the enabled transitions.
     """
-    current_marking_expanded = current_marking_vector[:, np.newaxis]
-    enabled_transitions = np.where(np.all(current_marking_expanded >= pre_condition_matrix, axis=0))[0]
+    num_transitions = pre_condition_matrix.shape[1]
+    enabled_mask = np.ones(num_transitions, dtype=np.bool_)
+    for t in range(num_transitions):
+        for p in range(pre_condition_matrix.shape[0]):
+            if current_marking_vector[p] < pre_condition_matrix[p, t]:
+                enabled_mask[t] = False
+                break
+    enabled_transitions = np.where(enabled_mask)[0]
 
     if not enabled_transitions.size:
         num_places = pre_condition_matrix.shape[0]
-        return np.empty((0, num_places), dtype=int), np.empty((0,), dtype=int)
+        return np.empty((0, num_places), dtype=np.int64), np.empty((0,), dtype=np.int64)
 
-    new_markings = current_marking_expanded + change_matrix[:, enabled_transitions]
+    new_markings = current_marking_vector[:, np.newaxis] + change_matrix[:, enabled_transitions]
     return new_markings.T, enabled_transitions
 
 

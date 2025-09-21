@@ -65,7 +65,7 @@ def _generate_rate_variations(base_variation, num_variations):
 
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
-        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_graphical_net_task_with_given_rates(
+        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
             [v for v in base_variation["arr_vlist"]],
             base_variation["arr_edge"].tolist(),
             base_variation["arr_tranidx"].tolist(),
@@ -95,6 +95,7 @@ def generate_petri_net_variations(
     marks_upper_limit,
     parallel_job_count=1,
     num_rate_variations_per_structure=5,
+    max_candidates_per_structure=50,
 ):
     """Generates variations of a Petri net to augment the dataset.
 
@@ -106,15 +107,21 @@ def generate_petri_net_variations(
         parallel_job_count (int, optional): The number of parallel jobs to run. Defaults to 1.
         num_rate_variations_per_structure (int, optional): The number of firing rate
             variations to generate for each valid structure. Defaults to 5.
+        max_candidates_per_structure (int, optional): The maximum number of candidate
+            structures to consider. Defaults to 50.
 
     Returns:
         list: A list of dictionaries, each representing an augmented Petri net.
     """
     base_petri_matrix = np.array(petri_matrix)
     candidate_matrices = _generate_candidate_matrices(base_petri_matrix)
+    if len(candidate_matrices) > max_candidates_per_structure:
+        candidate_matrices = candidate_matrices[:max_candidates_per_structure]
 
     results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_stochastic_petri_net)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
+        delayed(SPN.filter_spn)(
+            matrix, place_upper_bound, marks_lower_limit, marks_upper_limit
+        )
         for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
