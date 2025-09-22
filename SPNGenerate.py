@@ -14,6 +14,7 @@ from DataGenerate import DataTransformation as DT
 from DataGenerate import PetriGenerate as PeGen
 from DataGenerate import SPN
 from utils import DataUtil as DU
+from utils import FileWriter as FW
 
 
 def generate_single_spn(config):
@@ -79,47 +80,6 @@ def augment_single_spn(sample, config):
         indices = np.random.choice(len(augmented_data), max_transforms, replace=False)
         return [augmented_data[i] for i in indices]
     return augmented_data
-
-
-def write_to_hdf5(group, data, compression="gzip", compression_opts=4):
-    """Writes a sample to an HDF5 group."""
-    for key, value in data.items():
-        try:
-            np_value = np.array(value)
-            d_shape = np_value.shape
-            d_type = np_value.dtype
-
-            if np_value.ndim > 0:
-                group.create_dataset(
-                    key,
-                    data=np_value,
-                    shape=d_shape,
-                    dtype=d_type,
-                    compression=compression,
-                    compression_opts=compression_opts,
-                )
-            else:
-                group.create_dataset(key, data=np_value, shape=d_shape, dtype=d_type)
-
-        except (TypeError, ValueError) as e:
-            print(f"Warning: Could not save key '{key}' for sample {group.name}. Error: {e}")
-
-
-class NumpyEncoder(json.JSONEncoder):
-    """Custom encoder for numpy data types."""
-
-    def default(self, obj):
-        if isinstance(obj, (np.integer, np.floating, np.bool_)):
-            return obj.item()
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NumpyEncoder, self).default(obj)
-
-
-def write_to_jsonl(file_handler, data):
-    """Appends a sample to a JSONL file, ensuring numpy compatibility."""
-    json_line = json.dumps(data, cls=NumpyEncoder)
-    file_handler.write(json_line + "\n")
 
 
 def setup_arg_parser():
@@ -205,21 +165,21 @@ def main():
 
     if output_format == "hdf5":
         with h5py.File(output_path, "w") as hf:
-            hf.attrs["generation_config"] = json.dumps(config, cls=NumpyEncoder)
+            hf.attrs["generation_config"] = json.dumps(config, cls=FW.NumpyEncoder)
             dataset_group = hf.create_group("dataset_samples")
 
             print(f"Writing {len(all_samples)} samples to HDF5...")
             for i, sample in enumerate(tqdm(all_samples, desc="Writing to HDF5")):
                 sample_group = dataset_group.create_group(f"sample_{i:07d}")
-                write_to_hdf5(sample_group, sample)
+                FW.write_to_hdf5(sample_group, sample)
             hf.attrs["total_samples_written"] = len(all_samples)
         print(f"HDF5 file '{output_path}' created successfully.")
 
     elif output_format == "jsonl":
         with open(output_path, "w") as f:
-            f.write(json.dumps(config, cls=NumpyEncoder) + "\n")
+            f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
             for sample in tqdm(all_samples, desc="Writing to JSONL"):
-                write_to_jsonl(f, sample)
+                FW.write_to_jsonl(f, sample)
         print(f"JSONL file '{output_path}' created successfully.")
 
 
