@@ -5,12 +5,13 @@ packages the data for use with DGL.
 """
 
 import os
-import pickle
 import time
 import numpy as np
+import h5py
+from tqdm import tqdm
 from utils import DataUtil as DU
+from utils import FileWriter as FW
 from DataGenerate import DataTransformation as dts
-from GNNs.datasets.NetLearningDatasetDGL import NetLearningDatasetDGL
 
 
 def get_grid_index(value, grid_boundaries):
@@ -99,34 +100,66 @@ def sample_and_transform_data(config):
     return transformed_data
 
 
-def package_dataset(save_dir, data):
-    """Packages the processed data into a DGL dataset."""
-    DU.create_directory(os.path.join(save_dir, "ori_data"))
-    data_dict = DU.create_data_dictionary(data)
-    DU.save_data_to_json_file(os.path.join(save_dir, "ori_data", "all_data.json"), data_dict)
+def package_dataset(config, data):
+    """Saves the processed data into the specified format (HDF5 or JSON-L)."""
+    save_dir = config["output_grid_location"]
+    output_format = config.get("output_format", "hdf5")
+    output_file = config.get("output_file", f"grid_dataset.{output_format}")
+    output_path = os.path.join(save_dir, output_file)
 
-    DU.partition_datasets(save_dir, 16, 0.2)
+    DU.create_directory(save_dir)
 
-    DU.create_directory(os.path.join(save_dir, "package_data"))
-    dataset = NetLearningDatasetDGL(os.path.join(save_dir, "preprocessd_data"))
+    if output_format == "hdf5":
+        with h5py.File(output_path, "w") as hf:
+            hf.attrs["generation_config"] = json.dumps(config, cls=FW.NumpyEncoder)
+            dataset_group = hf.create_group("dataset_samples")
 
-    start_time = time.time()
-    with open(os.path.join(save_dir, "package_data", "dataset.pkl"), "wb") as f:
-        pickle.dump([dataset.train, dataset.test], f)
-    print(f"Dataset packaging time: {time.time() - start_time:.2f} seconds")
+            print(f"Writing {len(data)} samples to HDF5...")
+            for i, sample in enumerate(tqdm(data, desc="Writing to HDF5")):
+                sample_group = dataset_group.create_group(f"sample_{i:07d}")
+                FW.write_to_hdf5(sample_group, sample)
+
+            hf.attrs["total_samples_written"] = len(data)
+        print(f"HDF5 file '{output_path}' created successfully.")
+
+    elif output_format == "jsonl":
+        with open(output_path, "w") as f:
+            f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
+
+            print(f"Writing {len(data)} samples to JSONL...")
+            for sample in tqdm(data, desc="Writing to JSONL"):
+                FW.write_to_jsonl(f, sample)
+        print(f"JSONL file '{output_path}' created successfully.")
+
+
+import argparse
+import json
 
 
 def main():
     """Main function to generate the grid dataset."""
-    config = DU.load_toml_file("config/DataConfig/PartitionGrid.toml")
+    parser = argparse.ArgumentParser(
+        description="Process raw data to generate a grid-based dataset for GNN training.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/DataConfig/PartitionGrid.toml",
+        help="Path to config TOML file.",
+    )
+    args = parser.parse_args()
+    config = DU.load_toml_file(args.config)
 
     partition_data_into_grid(
-        config["temporary_grid_location"], config["accumulation_data"], config["raw_data_location"]
+        config["temporary_grid_location"],
+        config["accumulation_data"],
+        config["raw_data_location"],
     )
 
     processed_data = sample_and_transform_data(config)
 
-    package_dataset(config["output_grid_location"], processed_data)
+    package_dataset(config, processed_data)
 
 
 if __name__ == "__main__":
