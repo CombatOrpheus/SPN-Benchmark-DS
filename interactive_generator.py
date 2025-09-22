@@ -10,6 +10,7 @@ import subprocess
 import toml
 import shutil
 from datetime import datetime
+from tqdm import tqdm
 
 
 def load_default_configs():
@@ -247,7 +248,7 @@ def main():
     # --- Execution Phase ---
     print("\n--- Starting Execution Phase ---")
     scenarios_to_run = sorted(os.listdir("temp_configs"))
-    for scenario_name in scenarios_to_run:
+    for scenario_name in tqdm(scenarios_to_run, desc="Running Scenarios"):
         scenario_dir = os.path.join("temp_configs", scenario_name)
         if not os.path.isdir(scenario_dir):
             continue
