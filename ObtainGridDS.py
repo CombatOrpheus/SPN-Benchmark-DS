@@ -30,34 +30,39 @@ def get_grid_index(value, grid_boundaries):
     return len(grid_boundaries)
 
 
-def _initialize_grid(grid_dir, accumulate_data):
+def _initialize_grid(grid_dir, accumulate_data, config):
     """Initializes the grid structure and configuration."""
     config_path = os.path.join(grid_dir, "config.json")
     if os.path.exists(config_path) and accumulate_data:
         grid_config = DU.load_json_file(config_path)
     else:
+        # Use boundaries from the main config, with fallbacks to the old hardcoded values
+        row_p = config.get("places_grid_boundaries", [5 + 2 * (i + 1) for i in range(5)])
+        col_m = config.get("markings_grid_boundaries", [4 + 4 * (i + 1) for i in range(10)])
         grid_config = {
-            "row_p": [5 + 2 * (i + 1) for i in range(5)],
-            "col_m": [4 + 4 * (i + 1) for i in range(10)],
-            "json_count": np.zeros((5, 10), dtype=int).tolist(),
+            "row_p": row_p,
+            "col_m": col_m,
+            "json_count": np.zeros((len(row_p) + 1, len(col_m) + 1), dtype=int).tolist(),
         }
 
-    for i in range(len(grid_config["row_p"])):
-        for j in range(len(grid_config["col_m"])):
+    # The number of directories is one more than the number of boundaries
+    for i in range(len(grid_config["row_p"]) + 1):
+        for j in range(len(grid_config["col_m"]) + 1):
             DU.create_directory(os.path.join(grid_dir, f"p{i+1}", f"m{j+1}"))
 
     return grid_config
 
 
-def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path):
+def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
     """Partitions raw data into a grid structure.
 
     Args:
         grid_dir (str): The directory to store the grid data.
         accumulate_data (bool): Whether to accumulate data or start fresh.
         raw_data_path (str): The path to the raw data JSON file.
+        config (dict): The configuration dictionary.
     """
-    grid_config = _initialize_grid(grid_dir, accumulate_data)
+    grid_config = _initialize_grid(grid_dir, accumulate_data, config)
     row_p = grid_config["row_p"]
     col_m = grid_config["col_m"]
     dir_counts = np.array(grid_config["json_count"])
@@ -85,8 +90,13 @@ def sample_and_transform_data(config):
     """Samples data from the grid and applies transformations."""
     grid_data_loc = os.path.join(config["temporary_grid_location"], "p%s", "m%s")
     all_data = []
-    for i in range(config["places_upper_limit"]):
-        for j in range(config["markings_upper_limit"]):
+
+    # Use the length of the boundaries to determine the grid size
+    num_place_bins = len(config.get("places_grid_boundaries", [5 + 2 * (i + 1) for i in range(5)])) + 1
+    num_marking_bins = len(config.get("markings_grid_boundaries", [4 + 4 * (i + 1) for i in range(10)])) + 1
+
+    for i in range(num_place_bins):
+        for j in range(num_marking_bins):
             sampled_list = DU.sample_json_files_from_directory(
                 config["samples_per_grid"], grid_data_loc % (i + 1, j + 1)
             )
@@ -155,6 +165,7 @@ def main():
         config["temporary_grid_location"],
         config["accumulation_data"],
         config["raw_data_location"],
+        config,  # Pass the full config
     )
 
     processed_data = sample_and_transform_data(config)
