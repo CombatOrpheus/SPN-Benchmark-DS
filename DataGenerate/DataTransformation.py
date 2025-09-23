@@ -8,36 +8,39 @@ from joblib import Parallel, delayed
 from DataGenerate import SPN
 
 
-def _generate_candidate_matrices(base_petri_matrix):
-    """Generates candidate Petri net matrices by applying various transformations."""
+def _generate_candidate_matrices(base_petri_matrix, config):
+    """Generates candidate Petri net matrices based on the provided augmentation config."""
     candidate_matrices = []
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
 
     # Delete an edge
-    for r in range(num_places):
-        for c in range(num_cols - 1):
-            if base_petri_matrix[r, c] == 1:
-                modified_matrix = base_petri_matrix.copy()
-                modified_matrix[r, c] = 0
-                candidate_matrices.append(modified_matrix)
+    if config.get("enable_delete_edge", False):
+        for r in range(num_places):
+            for c in range(num_cols - 1):
+                if base_petri_matrix[r, c] == 1:
+                    modified_matrix = base_petri_matrix.copy()
+                    modified_matrix[r, c] = 0
+                    candidate_matrices.append(modified_matrix)
 
     # Add an edge
-    for r in range(num_places):
-        for c in range(num_cols - 1):
-            if base_petri_matrix[r, c] == 0:
-                modified_matrix = base_petri_matrix.copy()
-                modified_matrix[r, c] = 1
-                candidate_matrices.append(modified_matrix)
+    if config.get("enable_add_edge", False):
+        for r in range(num_places):
+            for c in range(num_cols - 1):
+                if base_petri_matrix[r, c] == 0:
+                    modified_matrix = base_petri_matrix.copy()
+                    modified_matrix[r, c] = 1
+                    candidate_matrices.append(modified_matrix)
 
     # Add a token
-    for r in range(num_places):
-        modified_matrix = base_petri_matrix.copy()
-        modified_matrix[r, -1] += 1
-        candidate_matrices.append(modified_matrix)
+    if config.get("enable_add_token", False):
+        for r in range(num_places):
+            modified_matrix = base_petri_matrix.copy()
+            modified_matrix[r, -1] += 1
+            candidate_matrices.append(modified_matrix)
 
     # Delete a token
-    if np.sum(base_petri_matrix[:, -1]) > 1:
+    if config.get("enable_delete_token", False) and np.sum(base_petri_matrix[:, -1]) > 1:
         for r in range(num_places):
             if base_petri_matrix[r, -1] >= 1:
                 modified_matrix = base_petri_matrix.copy()
@@ -45,7 +48,7 @@ def _generate_candidate_matrices(base_petri_matrix):
                 candidate_matrices.append(modified_matrix)
 
     # Add a place
-    if num_transitions > 0:
+    if config.get("enable_add_place", False) and num_transitions > 0:
         new_place_row = np.zeros((1, num_cols), dtype=int)
         t_idx_to_connect = np.random.randint(0, num_transitions * 2)
         new_place_row[0, t_idx_to_connect] = 1
@@ -88,48 +91,43 @@ def _generate_rate_variations(base_variation, num_variations):
     return rate_variations
 
 
-def generate_petri_net_variations(
-    petri_matrix,
-    place_upper_bound,
-    marks_lower_limit,
-    marks_upper_limit,
-    parallel_job_count=1,
-    num_rate_variations_per_structure=5,
-    max_candidates_per_structure=50,
-):
-    """Generates variations of a Petri net to augment the dataset.
+def generate_petri_net_variations(petri_matrix, config):
+    """Generates variations of a Petri net to augment the dataset based on a config dict.
 
     Args:
         petri_matrix (numpy.ndarray): The base Petri net matrix.
-        place_upper_bound (int): The upper bound for tokens in any single place.
-        marks_lower_limit (int): The lower limit for the number of markings.
-        marks_upper_limit (int): The upper limit for the number of markings.
-        parallel_job_count (int, optional): The number of parallel jobs to run. Defaults to 1.
-        num_rate_variations_per_structure (int, optional): The number of firing rate
-            variations to generate for each valid structure. Defaults to 5.
-        max_candidates_per_structure (int, optional): The maximum number of candidate
-            structures to consider. Defaults to 50.
+        config (dict): A dictionary containing augmentation settings.
 
     Returns:
         list: A list of dictionaries, each representing an augmented Petri net.
     """
     base_petri_matrix = np.array(petri_matrix)
-    candidate_matrices = _generate_candidate_matrices(base_petri_matrix)
-    if len(candidate_matrices) > max_candidates_per_structure:
-        candidate_matrices = candidate_matrices[:max_candidates_per_structure]
+    candidate_matrices = _generate_candidate_matrices(base_petri_matrix, config)
 
-    results = Parallel(n_jobs=parallel_job_count)(
-        delayed(SPN.filter_spn)(matrix, place_upper_bound, marks_lower_limit, marks_upper_limit)
-        for matrix in candidate_matrices
+    # Limit the number of candidates to avoid excessive computation
+    max_candidates = config.get("max_candidates_per_structure", 50)
+    if len(candidate_matrices) > max_candidates:
+        indices = np.random.choice(len(candidate_matrices), max_candidates, replace=False)
+        candidate_matrices = [candidate_matrices[i] for i in indices]
+
+    parallel_jobs = config.get("number_of_parallel_jobs", 1)
+    place_bound = config.get("place_upper_bound", 10)
+    marks_lower = config.get("marks_lower_limit", 4)
+    marks_upper = config.get("marks_upper_limit", 500)
+
+    results = Parallel(n_jobs=parallel_jobs)(
+        delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
 
     all_augmented_data = []
     all_augmented_data.extend(structural_variations)
 
-    for base_variation in structural_variations:
-        rate_variations = _generate_rate_variations(base_variation, num_rate_variations_per_structure)
-        all_augmented_data.extend(rate_variations)
+    if config.get("enable_rate_variations", False):
+        num_rate_variations = config.get("num_rate_variations_per_structure", 5)
+        for base_variation in structural_variations:
+            rate_variations = _generate_rate_variations(base_variation, num_rate_variations)
+            all_augmented_data.extend(rate_variations)
 
     return all_augmented_data
 

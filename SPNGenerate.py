@@ -5,6 +5,7 @@ This script generates Stochastic Petri Net (SPN) datasets and saves them to HDF5
 import argparse
 import json
 import os
+import subprocess
 import h5py
 import numpy as np
 from joblib import Parallel, delayed
@@ -122,6 +123,12 @@ def setup_arg_parser():
         "--maximum_transformations_per_sample", type=int, help="Max number of transformations."
     )
 
+    # Reporting arguments
+    reporting_group = parser.add_argument_group("Reporting")
+    reporting_group.add_argument(
+        "--enable_statistics_report", action="store_true", help="Enable statistical report generation."
+    )
+
     return parser
 
 
@@ -181,6 +188,21 @@ def main():
             for sample in tqdm(all_samples, desc="Writing to JSONL"):
                 FW.write_to_jsonl(f, sample)
         print(f"JSONL file '{output_path}' created successfully.")
+
+    if config.get("enable_statistics_report"):
+        print("Generating statistical report...")
+        report_output_path = os.path.splitext(output_path)[0] + "_report.html"
+        try:
+            subprocess.run(
+                ["python", "generate_statistics.py", "--input", output_path, "--output", report_output_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"Statistical report saved to '{report_output_path}'")
+        except subprocess.CalledProcessError as e:
+            print(f"Error generating statistical report for {output_path}:")
+            print(e.stderr)
 
 
 if __name__ == "__main__":

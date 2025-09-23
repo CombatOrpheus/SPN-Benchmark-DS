@@ -1,0 +1,44 @@
+# Configuration for the data augmentation script.
+
+# --- General Settings ---
+number_of_parallel_jobs = 4
+
+# --- Structural Transformation Settings ---
+# These settings control changes to the Petri net structure itself.
+
+# Enable or disable adding a single edge between a random place and transition.
+enable_add_edge = true
+
+# Enable or disable deleting a single edge between a random place and transition.
+enable_delete_edge = true
+
+# Enable or disable adding a new place to the Petri net.
+# The new place will be connected to one existing transition.
+enable_add_place = true
+
+# --- Marking and Rate Transformation Settings ---
+
+# Enable or disable adding a single token to a random place.
+enable_add_token = true
+
+# Enable or disable removing a single token from a random place.
+# This will only apply if the place has tokens to remove.
+enable_delete_token = true
+
+# --- Firing Rate (Lambda) Variation Settings ---
+
+# Enable or disable the generation of new firing rate variations for each
+# new valid structure created by the above transformations.
+enable_rate_variations = true
+
+# The number of new firing rate (lambda) sets to generate for each
+# successfully created structural variation.
+num_rate_variations_per_structure = 5
+
+# --- Filtering Settings for Augmented Nets ---
+# These values are used to validate and filter the newly created SPNs.
+# They are passed to the SPN.filter_spn function.
+
+place_upper_bound = 10
+marks_lower_limit = 4
+marks_upper_limit = 50
