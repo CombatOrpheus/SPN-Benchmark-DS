@@ -12,6 +12,8 @@ import shutil
 from datetime import datetime
 from tqdm import tqdm
 
+import SPNGenerate
+
 
 def load_default_configs():
     """Loads the default configurations from the project's config files."""
@@ -92,9 +94,7 @@ def get_user_input_for_list(prompt, default, help_text=""):
                 result = list(result)
 
             if not isinstance(result, list):
-                print(
-                    "Invalid input. Input must evaluate to a list, generator, or list comprehension."
-                )
+                print("Invalid input. Input must evaluate to a list, generator, or list comprehension.")
                 continue
 
             # Check if all elements are integers
@@ -105,9 +105,7 @@ def get_user_input_for_list(prompt, default, help_text=""):
 
         except Exception as e:
             print(f"Error evaluating input: {e}")
-            print(
-                "Please enter a valid Python expression (e.g., [1, 2, 3] or range(5))."
-            )
+            print("Please enter a valid Python expression (e.g., [1, 2, 3] or range(5)).")
 
 
 def get_spn_generate_config(defaults, common_data_folder, generation_mode):
@@ -304,9 +302,7 @@ def main():
         generation_mode = get_generation_mode()
 
         if generation_mode == "random":
-            num_created = configure_random_scenarios(
-                spn_defaults, common_data_folder, generation_mode, scenario_count
-            )
+            num_created = configure_random_scenarios(spn_defaults, common_data_folder, generation_mode, scenario_count)
             # Store the mode for each created scenario
             for i in range(num_created):
                 generation_modes[f"scenario_{scenario_count + i}"] = generation_mode
@@ -345,13 +341,9 @@ def main():
         shutil.rmtree(temp_grid_folder)
 
 
-def configure_random_scenarios(
-    spn_defaults, common_data_folder, generation_mode, scenario_count_offset
-):
+def configure_random_scenarios(spn_defaults, common_data_folder, generation_mode, scenario_count_offset):
     """Configures multiple scenarios for random generation based on a list of dataset sizes."""
-    base_spn_config = get_spn_generate_config(
-        spn_defaults, common_data_folder, generation_mode
-    )
+    base_spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
     dataset_sizes = base_spn_config.pop("dataset_sizes")
 
     print(f"\n--- Creating {len(dataset_sizes)} scenarios based on dataset sizes ---")
@@ -370,28 +362,20 @@ def configure_random_scenarios(
         with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
             toml.dump(spn_config, f)
 
-        print(
-            f"Configuration for scenario {scenario_name} (size: {size}) saved in {scenario_dir}"
-        )
+        print(f"Configuration for scenario {scenario_name} (size: {size}) saved in {scenario_dir}")
     return len(dataset_sizes)
 
 
-def configure_grid_scenario(
-    spn_defaults, grid_defaults, common_data_folder, generation_mode, scenario_name
-):
+def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, generation_mode, scenario_name):
     """Interactively configures one scenario for grid-based generation."""
     scenario_dir = os.path.join("temp_configs", scenario_name)
     os.makedirs(scenario_dir, exist_ok=True)
 
-    spn_config = get_spn_generate_config(
-        spn_defaults, common_data_folder, generation_mode
-    )
+    spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
     with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
         toml.dump(spn_config, f)
 
-    grid_config = get_partition_grid_config(
-        grid_defaults, spn_config, common_data_folder
-    )
+    grid_config = get_partition_grid_config(grid_defaults, spn_config, common_data_folder)
     temp_grid_folder = grid_config["temporary_grid_location"]  # Save for cleanup
     with open(os.path.join(scenario_dir, "PartitionGrid.toml"), "w") as f:
         toml.dump(grid_config, f)
@@ -401,19 +385,18 @@ def configure_grid_scenario(
 
 
 def run_scenario(scenario_dir, scenario_name, generation_mode):
-    """Runs a single scenario."""
+    """Runs a single scenario, showing live output from the process."""
     spn_config_path = os.path.join(scenario_dir, "SPNGenerate.toml")
 
     # Run SPNGenerate.py
     print(f"Running SPNGenerate.py for {scenario_name}...")
-    spn_process = subprocess.run(
-        ["python", "SPNGenerate.py", "--config", spn_config_path], capture_output=True, text=True
-    )
-    if spn_process.returncode != 0:
-        print(f"Error running SPNGenerate.py for {scenario_name}.")
-        print(spn_process.stderr)
+    try:
+        spn_config = toml.load(spn_config_path)
+        SPNGenerate.run_generation_from_config(spn_config)
+        print("SPNGenerate.py completed successfully.")
+    except Exception as e:
+        print(f"An error occurred while running SPNGenerate.py for {scenario_name}: {e}")
         return
-    print("SPNGenerate.py completed successfully.")
 
     # Move SPN config file to completed_configs
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
