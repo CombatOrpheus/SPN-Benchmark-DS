@@ -38,8 +38,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
     "black",
+    "pytest-benchmark",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["DataGenerate*"]
+exclude = ["GNNs*", "tests*"]
 
 [tool.black]
 line-length = 120
