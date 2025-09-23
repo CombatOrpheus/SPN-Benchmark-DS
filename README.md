@@ -36,6 +36,25 @@ Before you begin, ensure you have Python 3.11 or higher installed. You will also
     conda activate spn-benchmark
     ```
 
+### Testing
+
+This project uses `pytest` for testing, run via `uv`. To run the tests, follow these steps:
+
+1.  **Sync all dependencies, including development dependencies:**
+    ```bash
+    uv sync --all-extras
+    ```
+
+2.  **Install the project in editable mode:** This makes local modules like `DataGenerate` available to the test suite.
+    ```bash
+    uv pip install -e .
+    ```
+
+3.  **Run the test suite:**
+    ```bash
+    uv run pytest
+    ```
+
 ### Using Docker
 
 For a consistent and reproducible development environment, you can use the provided `Dockerfile`.

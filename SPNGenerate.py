@@ -141,13 +141,9 @@ def load_config(args):
     return config
 
 
-def main():
-    """Main function to generate the SPN dataset."""
-    parser = setup_arg_parser()
-    args = parser.parse_args()
-    config = load_config(args)
-
-    output_format = config.get("output_format", "hdf5")  # Default to hdf5
+def run_generation_from_config(config):
+    """Runs the SPN generation process from a configuration dictionary."""
+    output_format = config.get("output_format", "hdf5")
     output_dir = os.path.join(config["output_data_location"], f"data_{output_format}")
     DU.create_directory(output_dir)
     output_path = os.path.join(output_dir, config["output_file"])
@@ -170,18 +166,20 @@ def main():
     else:
         all_samples = valid_samples
 
+    if not all_samples:
+        print("No samples were generated. Skipping file writing and reporting.")
+        return
+
     if output_format == "hdf5":
         with h5py.File(output_path, "w") as hf:
             hf.attrs["generation_config"] = json.dumps(config, cls=FW.NumpyEncoder)
             dataset_group = hf.create_group("dataset_samples")
-
             print(f"Writing {len(all_samples)} samples to HDF5...")
             for i, sample in enumerate(tqdm(all_samples, desc="Writing to HDF5")):
                 sample_group = dataset_group.create_group(f"sample_{i:07d}")
                 FW.write_to_hdf5(sample_group, sample)
             hf.attrs["total_samples_written"] = len(all_samples)
         print(f"HDF5 file '{output_path}' created successfully.")
-
     elif output_format == "jsonl":
         with open(output_path, "w") as f:
             f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
@@ -193,16 +191,32 @@ def main():
         print("Generating statistical report...")
         report_output_path = os.path.splitext(output_path)[0] + "_report.html"
         try:
-            subprocess.run(
-                ["python", "generate_statistics.py", "--input", output_path, "--output", report_output_path],
+            result = subprocess.run(
+                [
+                    "python",
+                    "generate_statistics.py",
+                    "--input",
+                    output_path,
+                    "--output",
+                    report_output_path,
+                ],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            print(f"Statistical report saved to '{report_output_path}'")
+            if result.stdout:
+                print(result.stdout)
         except subprocess.CalledProcessError as e:
             print(f"Error generating statistical report for {output_path}:")
             print(e.stderr)
+
+
+def main():
+    """Main function to generate the SPN dataset."""
+    parser = setup_arg_parser()
+    args = parser.parse_args()
+    config = load_config(args)
+    run_generation_from_config(config)
 
 
 if __name__ == "__main__":

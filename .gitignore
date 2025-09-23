@@ -8,3 +8,4 @@ __pycache__/
 Data/
 completed_configs/
 temp_configs/
+*.egg-info
