@@ -5,12 +5,13 @@ packages the data for use with DGL.
 """
 
 import os
-import pickle
 import time
 import numpy as np
+import h5py
+from tqdm import tqdm
 from utils import DataUtil as DU
+from utils import FileWriter as FW
 from DataGenerate import DataTransformation as dts
-from GNNs.datasets.NetLearningDatasetDGL import NetLearningDatasetDGL
 
 
 def get_grid_index(value, grid_boundaries):
@@ -29,34 +30,39 @@ def get_grid_index(value, grid_boundaries):
     return len(grid_boundaries)
 
 
-def _initialize_grid(grid_dir, accumulate_data):
+def _initialize_grid(grid_dir, accumulate_data, config):
     """Initializes the grid structure and configuration."""
     config_path = os.path.join(grid_dir, "config.json")
     if os.path.exists(config_path) and accumulate_data:
         grid_config = DU.load_json_file(config_path)
     else:
+        # Use boundaries from the main config, with fallbacks to the old hardcoded values
+        row_p = config.get("places_grid_boundaries", [5 + 2 * (i + 1) for i in range(5)])
+        col_m = config.get("markings_grid_boundaries", [4 + 4 * (i + 1) for i in range(10)])
         grid_config = {
-            "row_p": [5 + 2 * (i + 1) for i in range(5)],
-            "col_m": [4 + 4 * (i + 1) for i in range(10)],
-            "json_count": np.zeros((5, 10), dtype=int).tolist(),
+            "row_p": row_p,
+            "col_m": col_m,
+            "json_count": np.zeros((len(row_p) + 1, len(col_m) + 1), dtype=int).tolist(),
         }
 
-    for i in range(len(grid_config["row_p"])):
-        for j in range(len(grid_config["col_m"])):
+    # The number of directories is one more than the number of boundaries
+    for i in range(len(grid_config["row_p"]) + 1):
+        for j in range(len(grid_config["col_m"]) + 1):
             DU.create_directory(os.path.join(grid_dir, f"p{i+1}", f"m{j+1}"))
 
     return grid_config
 
 
-def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path):
+def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
     """Partitions raw data into a grid structure.
 
     Args:
         grid_dir (str): The directory to store the grid data.
         accumulate_data (bool): Whether to accumulate data or start fresh.
         raw_data_path (str): The path to the raw data JSON file.
+        config (dict): The configuration dictionary.
     """
-    grid_config = _initialize_grid(grid_dir, accumulate_data)
+    grid_config = _initialize_grid(grid_dir, accumulate_data, config)
     row_p = grid_config["row_p"]
     col_m = grid_config["col_m"]
     dir_counts = np.array(grid_config["json_count"])
@@ -84,8 +90,13 @@ def sample_and_transform_data(config):
     """Samples data from the grid and applies transformations."""
     grid_data_loc = os.path.join(config["temporary_grid_location"], "p%s", "m%s")
     all_data = []
-    for i in range(config["places_upper_limit"]):
-        for j in range(config["markings_upper_limit"]):
+
+    # Use the length of the boundaries to determine the grid size
+    num_place_bins = len(config.get("places_grid_boundaries", [5 + 2 * (i + 1) for i in range(5)])) + 1
+    num_marking_bins = len(config.get("markings_grid_boundaries", [4 + 4 * (i + 1) for i in range(10)])) + 1
+
+    for i in range(num_place_bins):
+        for j in range(num_marking_bins):
             sampled_list = DU.sample_json_files_from_directory(
                 config["samples_per_grid"], grid_data_loc % (i + 1, j + 1)
             )
@@ -99,34 +110,67 @@ def sample_and_transform_data(config):
     return transformed_data
 
 
-def package_dataset(save_dir, data):
-    """Packages the processed data into a DGL dataset."""
-    DU.create_directory(os.path.join(save_dir, "ori_data"))
-    data_dict = DU.create_data_dictionary(data)
-    DU.save_data_to_json_file(os.path.join(save_dir, "ori_data", "all_data.json"), data_dict)
+def package_dataset(config, data):
+    """Saves the processed data into the specified format (HDF5 or JSON-L)."""
+    save_dir = config["output_grid_location"]
+    output_format = config.get("output_format", "hdf5")
+    output_file = config.get("output_file", f"grid_dataset.{output_format}")
+    output_path = os.path.join(save_dir, output_file)
 
-    DU.partition_datasets(save_dir, 16, 0.2)
+    DU.create_directory(save_dir)
 
-    DU.create_directory(os.path.join(save_dir, "package_data"))
-    dataset = NetLearningDatasetDGL(os.path.join(save_dir, "preprocessd_data"))
+    if output_format == "hdf5":
+        with h5py.File(output_path, "w") as hf:
+            hf.attrs["generation_config"] = json.dumps(config, cls=FW.NumpyEncoder)
+            dataset_group = hf.create_group("dataset_samples")
 
-    start_time = time.time()
-    with open(os.path.join(save_dir, "package_data", "dataset.pkl"), "wb") as f:
-        pickle.dump([dataset.train, dataset.test], f)
-    print(f"Dataset packaging time: {time.time() - start_time:.2f} seconds")
+            print(f"Writing {len(data)} samples to HDF5...")
+            for i, sample in enumerate(tqdm(data, desc="Writing to HDF5")):
+                sample_group = dataset_group.create_group(f"sample_{i:07d}")
+                FW.write_to_hdf5(sample_group, sample)
+
+            hf.attrs["total_samples_written"] = len(data)
+        print(f"HDF5 file '{output_path}' created successfully.")
+
+    elif output_format == "jsonl":
+        with open(output_path, "w") as f:
+            f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
+
+            print(f"Writing {len(data)} samples to JSONL...")
+            for sample in tqdm(data, desc="Writing to JSONL"):
+                FW.write_to_jsonl(f, sample)
+        print(f"JSONL file '{output_path}' created successfully.")
+
+
+import argparse
+import json
 
 
 def main():
     """Main function to generate the grid dataset."""
-    config = DU.load_toml_file("config/DataConfig/PartitionGrid.toml")
+    parser = argparse.ArgumentParser(
+        description="Process raw data to generate a grid-based dataset for GNN training.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/DataConfig/PartitionGrid.toml",
+        help="Path to config TOML file.",
+    )
+    args = parser.parse_args()
+    config = DU.load_toml_file(args.config)
 
     partition_data_into_grid(
-        config["temporary_grid_location"], config["accumulation_data"], config["raw_data_location"]
+        config["temporary_grid_location"],
+        config["accumulation_data"],
+        config["raw_data_location"],
+        config,  # Pass the full config
     )
 
     processed_data = sample_and_transform_data(config)
 
-    package_dataset(config["output_grid_location"], processed_data)
+    package_dataset(config, processed_data)
 
 
 if __name__ == "__main__":

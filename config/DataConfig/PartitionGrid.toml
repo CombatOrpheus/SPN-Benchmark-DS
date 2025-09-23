@@ -6,3 +6,5 @@ markings_upper_limit = 10
 samples_per_grid = 5
 lambda_variations_per_sample = 10
 output_grid_location = "Data/GridData/DS1"
+output_format = "hdf5"
+output_file = "grid_dataset.hdf5"
