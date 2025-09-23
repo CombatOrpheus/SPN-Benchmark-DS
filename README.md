@@ -36,6 +36,23 @@ Before you begin, ensure you have Python 3.11 or higher installed. You will also
     conda activate spn-benchmark
     ```
 
+### Using Docker
+
+For a consistent and reproducible development environment, you can use the provided `Dockerfile`.
+
+1.  **Build the Docker image:**
+    From the root of the project, run the following command:
+    ```bash
+    docker build -t spn-benchmark .
+    ```
+
+2.  **Run the Docker container:**
+    This command starts an interactive `bash` shell inside the container, with the project directory mounted at `/app`.
+    ```bash
+    docker run -it -v .:/app spn-benchmark
+    ```
+    You can now run any of the project's scripts from within the container's shell.
+
 ### Data Generation
 
 The primary script for generating datasets is `SPNGenerate.py`. Its behavior is controlled by a TOML configuration file. A sample configuration is provided at `config/DataConfig/SPNGenerate.toml`.
