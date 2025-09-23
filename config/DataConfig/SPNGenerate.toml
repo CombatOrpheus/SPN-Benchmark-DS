@@ -16,3 +16,4 @@ enable_transformations = false
 maximum_transformations_per_sample = 100
 output_file = "spn_dataset.out"
 output_format = "hdf5"
+enable_statistics_report = true

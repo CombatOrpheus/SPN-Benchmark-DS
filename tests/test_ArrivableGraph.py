@@ -5,6 +5,7 @@ from DataGenerate.ArrivableGraph import (
     generate_reachability_graph,
 )
 
+
 @pytest.fixture
 def simple_petri_net():
     """A simple Petri net for testing."""
@@ -13,6 +14,7 @@ def simple_petri_net():
     post = np.array([[0], [1]])
     initial_marking = np.array([1, 0])
     return np.hstack([pre, post, initial_marking.reshape(-1, 1)])
+
 
 def test_get_enabled_transitions(simple_petri_net):
     """Test the identification of enabled transitions."""
@@ -26,6 +28,7 @@ def test_get_enabled_transitions(simple_petri_net):
     assert enabled_transitions[0] == 0
     assert np.allclose(new_markings[0], np.array([0, 1]))
 
+
 def test_get_enabled_transitions_none():
     """Test when there are no enabled transitions."""
     pre = np.array([[1]])
@@ -34,6 +37,7 @@ def test_get_enabled_transitions_none():
     change_matrix = post - pre
     _, enabled_transitions = get_enabled_transitions(pre, change_matrix, current_marking)
     assert len(enabled_transitions) == 0
+
 
 def test_generate_reachability_graph(simple_petri_net):
     """Test the generation of a reachability graph."""
@@ -49,6 +53,7 @@ def test_generate_reachability_graph(simple_petri_net):
     assert e[0] == [0, 1]
     assert t[0] == 0
 
+
 def test_generate_reachability_graph_unbounded():
     """Test with a Petri net that is unbounded."""
     # T1 -> P1
@@ -60,6 +65,7 @@ def test_generate_reachability_graph_unbounded():
     _, _, _, _, bounded = generate_reachability_graph(petri_net, place_upper_limit=5)
 
     assert bounded is False
+
 
 def test_generate_reachability_graph_max_markings():
     """Test that exploration stops when max_markings is reached."""
@@ -73,6 +79,7 @@ def test_generate_reachability_graph_max_markings():
 
     assert bounded is False
     assert len(v) <= 5
+
 
 def test_generate_reachability_graph_revisited_marking():
     """Test a graph with a cycle."""
@@ -89,4 +96,4 @@ def test_generate_reachability_graph_revisited_marking():
     assert len(v) == 2
     assert len(e) == 2
     assert len(t) == 2
-    assert e[1] == [1, 0] # Should be a back edge
+    assert e[1] == [1, 0]  # Should be a back edge

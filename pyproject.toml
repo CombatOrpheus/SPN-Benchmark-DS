@@ -11,9 +11,14 @@ dependencies = [
     # Core scientific and data handling packages
     "numpy==2.2.6",
     "scipy==1.16.1",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "tabulate",
     "h5py==3.14.0",
     "joblib==1.5.2",
     "numba==0.61.2",
+    "toml",
 
     # Deep learning and GNN packages
     "torch==2.8.0",

@@ -8,6 +8,7 @@ from DataGenerate.PetriGenerate import (
     add_tokens_randomly,
 )
 
+
 def test_generate_random_petri_net():
     """Test the generation of a random Petri net."""
     num_places = 5
@@ -16,6 +17,7 @@ def test_generate_random_petri_net():
     assert petri_matrix.shape == (num_places, 2 * num_transitions + 1)
     assert np.sum(petri_matrix[:, -1]) > 0  # Should have an initial marking
 
+
 def test_prune_petri_net():
     """Test the pruning of a Petri net."""
     num_places = 10
@@ -23,6 +25,7 @@ def test_prune_petri_net():
     petri_matrix = generate_random_petri_net(num_places, num_transitions)
     pruned_matrix = prune_petri_net(petri_matrix)
     assert pruned_matrix.shape == petri_matrix.shape
+
 
 def test_delete_excess_edges():
     """Test the deletion of excess edges."""
@@ -35,6 +38,7 @@ def test_delete_excess_edges():
     for i in range(10):
         assert np.sum(modified_matrix[:, i]) <= 2
 
+
 def test_add_missing_connections():
     """Test adding missing connections."""
     petri_matrix = np.zeros((5, 11), dtype=int)
@@ -44,6 +48,7 @@ def test_add_missing_connections():
     assert np.all(np.sum(modified_matrix[:, :10], axis=0) > 0)
     assert np.all(np.sum(modified_matrix[:, :5], axis=1) > 0)
     assert np.all(np.sum(modified_matrix[:, 5:10], axis=1) > 0)
+
 
 def test_add_tokens_randomly():
     """Test adding tokens randomly."""
