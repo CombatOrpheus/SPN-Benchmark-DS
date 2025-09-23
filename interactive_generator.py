@@ -69,6 +69,47 @@ def get_user_input(prompt, default, type_cast=str, help_text=""):
                 return default
 
 
+def get_user_input_for_list(prompt, default, help_text=""):
+    """
+    Gets user input that should evaluate to a list of integers, allowing for
+    Python expressions like lists, ranges, or list comprehensions.
+    """
+    if help_text:
+        print(f"  {help_text}")
+
+    while True:
+        user_input_str = input(f"{prompt} [default: {default}]: ")
+        if not user_input_str:
+            user_input_str = default
+
+        try:
+            # Safely evaluate the input string.
+            # The environment provides access to common built-ins like range() and list().
+            result = eval(user_input_str, {"__builtins__": __builtins__})
+
+            # If it's a generator or other iterable, consume it into a list
+            if hasattr(result, "__iter__") and not isinstance(result, (list, str)):
+                result = list(result)
+
+            if not isinstance(result, list):
+                print(
+                    "Invalid input. Input must evaluate to a list, generator, or list comprehension."
+                )
+                continue
+
+            # Check if all elements are integers
+            if all(isinstance(x, int) for x in result):
+                return result
+            else:
+                print("Invalid input. All elements in the list must be integers.")
+
+        except Exception as e:
+            print(f"Error evaluating input: {e}")
+            print(
+                "Please enter a valid Python expression (e.g., [1, 2, 3] or range(5))."
+            )
+
+
 def get_spn_generate_config(defaults, common_data_folder, generation_mode):
     """Interactively gets the configuration for SPNGenerate.py."""
     print("\n--- Configuring SPNGenerate.py ---")
@@ -87,13 +128,11 @@ def get_spn_generate_config(defaults, common_data_folder, generation_mode):
     print("  Output format is set to 'jsonl' to be compatible with the next script.")
 
     if generation_mode == "random":
-        dataset_sizes_str = get_user_input(
-            "List of dataset sizes (comma-separated)",
-            "1000, 5000",
-            str,
-            "A comma-separated list of dataset sizes to generate.",
+        config["dataset_sizes"] = get_user_input_for_list(
+            "List of dataset sizes (e.g., [1000, 5000] or range(1000, 5001, 1000))",
+            "[1000, 5000]",
+            "A Python list, generator, or list comprehension for dataset sizes.",
         )
-        config["dataset_sizes"] = [int(s.strip()) for s in dataset_sizes_str.split(",")]
     else:  # grid mode
         config["number_of_samples_to_generate"] = get_user_input(
             "Number of samples to generate",
@@ -197,21 +236,17 @@ def get_partition_grid_config(defaults, spn_config, common_data_folder):
         "A boolean indicating whether to accumulate data or start fresh.",
     )
 
-    places_boundaries_str = get_user_input(
-        "Places grid boundaries (comma-separated)",
-        "7, 9, 11, 13, 15",
-        str,
-        "Boundaries for grid rows (number of places). Example: 10,20,30",
+    config["places_grid_boundaries"] = get_user_input_for_list(
+        "Places grid boundaries (e.g., [7, 9, 11] or range(7, 16, 2))",
+        "[7, 9, 11, 13, 15]",
+        "Boundaries for grid rows (number of places).",
     )
-    config["places_grid_boundaries"] = [int(s.strip()) for s in places_boundaries_str.split(",")]
 
-    markings_boundaries_str = get_user_input(
-        "Markings grid boundaries (comma-separated)",
-        "8, 12, 16, 20, 24, 28, 32, 36, 40, 44",
-        str,
-        "Boundaries for grid columns (number of markings). Example: 100,200,300",
+    config["markings_grid_boundaries"] = get_user_input_for_list(
+        "Markings grid boundaries (e.g., [8, 12, 16] or range(8, 45, 4))",
+        "[8, 12, 16, 20, 24, 28, 32, 36, 40, 44]",
+        "Boundaries for grid columns (number of markings).",
     )
-    config["markings_grid_boundaries"] = [int(s.strip()) for s in markings_boundaries_str.split(",")]
 
     config["samples_per_grid"] = get_user_input(
         "Samples per grid", defaults["samples_per_grid"], int, "The number of samples to take from each grid cell."
@@ -243,7 +278,6 @@ def main():
     """
     print("Welcome to the interactive SPN generation setup.")
 
-    generation_mode = get_generation_mode()
     common_data_folder = get_common_data_folder()
     temp_grid_folder = ""
 
@@ -256,62 +290,39 @@ def main():
 
     spn_defaults, grid_defaults = load_default_configs()
 
-    if generation_mode == "random":
-        configure_random_scenarios(spn_defaults, common_data_folder, generation_mode)
-    else:  # grid mode
-        temp_grid_folder = configure_grid_scenarios(spn_defaults, grid_defaults, common_data_folder, generation_mode)
-
-
-def configure_random_scenarios(spn_defaults, common_data_folder, generation_mode):
-    """Configures multiple scenarios for random generation based on a list of dataset sizes."""
-    base_spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
-    dataset_sizes = base_spn_config.pop("dataset_sizes")
-
-    print(f"\n--- Creating {len(dataset_sizes)} scenarios based on dataset sizes ---")
-    for i, size in enumerate(dataset_sizes):
-        scenario_name = f"scenario_{i + 1}"
-        scenario_dir = os.path.join("temp_configs", scenario_name)
-        os.makedirs(scenario_dir)
-
-        spn_config = base_spn_config.copy()
-        spn_config["number_of_samples_to_generate"] = size
-        # Create a more descriptive output filename for each scenario
-        original_filename = spn_config.get("output_file", "spn_dataset.jsonl")
-        name, ext = os.path.splitext(original_filename)
-        spn_config["output_file"] = f"{name}_{size}_samples{ext}"
-
-        with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
-            toml.dump(spn_config, f)
-
-        print(f"Configuration for scenario {scenario_name} (size: {size}) saved in {scenario_dir}")
-
-
-def configure_grid_scenarios(spn_defaults, grid_defaults, common_data_folder, generation_mode):
-    """Interactively configures one or more scenarios for grid-based generation."""
-    temp_grid_folder = ""
     scenario_count = 1
+    generation_modes = {}  # To store generation mode for each scenario
+
     while True:
-        add_scenario_input = input(f"\nAdd scenario {scenario_count}? (y/n) [default: y]: ")
+        add_scenario_input = input("\nAdd a new scenario? (y/n) [default: y]: ")
         if add_scenario_input.lower() == "n":
+            if scenario_count == 1:
+                print("No scenarios configured. Exiting.")
+                return
             break
 
-        print(f"\n--- Configuring Scenario {scenario_count} ---")
+        generation_mode = get_generation_mode()
 
-        scenario_dir = os.path.join("temp_configs", f"scenario_{scenario_count}")
-        os.makedirs(scenario_dir)
-
-        spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
-        with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
-            toml.dump(spn_config, f)
-
-        grid_config = get_partition_grid_config(grid_defaults, spn_config, common_data_folder)
-        temp_grid_folder = grid_config["temporary_grid_location"]  # Save for cleanup
-        with open(os.path.join(scenario_dir, "PartitionGrid.toml"), "w") as f:
-            toml.dump(grid_config, f)
-
-        print(f"\nConfiguration for scenario {scenario_count} saved in {scenario_dir}")
-        scenario_count += 1
-    return temp_grid_folder
+        if generation_mode == "random":
+            num_created = configure_random_scenarios(
+                spn_defaults, common_data_folder, generation_mode, scenario_count
+            )
+            # Store the mode for each created scenario
+            for i in range(num_created):
+                generation_modes[f"scenario_{scenario_count + i}"] = generation_mode
+            scenario_count += num_created
+        else:  # grid mode
+            scenario_name = f"scenario_{scenario_count}"
+            print(f"\n--- Configuring Scenario {scenario_count} ({generation_mode} mode) ---")
+            temp_grid_folder = configure_grid_scenario(
+                spn_defaults,
+                grid_defaults,
+                common_data_folder,
+                generation_mode,
+                scenario_name,
+            )
+            generation_modes[scenario_name] = generation_mode
+            scenario_count += 1
 
     print("\nAll scenarios configured.")
 
@@ -324,7 +335,7 @@ def configure_grid_scenarios(spn_defaults, grid_defaults, common_data_folder, ge
             continue
 
         print(f"\n--- Running Scenario: {scenario_name} ---")
-        run_scenario(scenario_dir, scenario_name, generation_mode)
+        run_scenario(scenario_dir, scenario_name, generation_modes[scenario_name])
 
     print("\nAll scenarios have been processed.")
     # Clean up temp directories
@@ -332,6 +343,61 @@ def configure_grid_scenarios(spn_defaults, grid_defaults, common_data_folder, ge
     if temp_grid_folder and os.path.exists(temp_grid_folder):
         print(f"Cleaning up temporary grid folder: {temp_grid_folder}")
         shutil.rmtree(temp_grid_folder)
+
+
+def configure_random_scenarios(
+    spn_defaults, common_data_folder, generation_mode, scenario_count_offset
+):
+    """Configures multiple scenarios for random generation based on a list of dataset sizes."""
+    base_spn_config = get_spn_generate_config(
+        spn_defaults, common_data_folder, generation_mode
+    )
+    dataset_sizes = base_spn_config.pop("dataset_sizes")
+
+    print(f"\n--- Creating {len(dataset_sizes)} scenarios based on dataset sizes ---")
+    for i, size in enumerate(dataset_sizes):
+        scenario_name = f"scenario_{scenario_count_offset + i}"
+        scenario_dir = os.path.join("temp_configs", scenario_name)
+        os.makedirs(scenario_dir, exist_ok=True)
+
+        spn_config = base_spn_config.copy()
+        spn_config["number_of_samples_to_generate"] = size
+        # Create a more descriptive output filename for each scenario
+        original_filename = spn_config.get("output_file", "spn_dataset.jsonl")
+        name, ext = os.path.splitext(original_filename)
+        spn_config["output_file"] = f"{name}_{size}_samples{ext}"
+
+        with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
+            toml.dump(spn_config, f)
+
+        print(
+            f"Configuration for scenario {scenario_name} (size: {size}) saved in {scenario_dir}"
+        )
+    return len(dataset_sizes)
+
+
+def configure_grid_scenario(
+    spn_defaults, grid_defaults, common_data_folder, generation_mode, scenario_name
+):
+    """Interactively configures one scenario for grid-based generation."""
+    scenario_dir = os.path.join("temp_configs", scenario_name)
+    os.makedirs(scenario_dir, exist_ok=True)
+
+    spn_config = get_spn_generate_config(
+        spn_defaults, common_data_folder, generation_mode
+    )
+    with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
+        toml.dump(spn_config, f)
+
+    grid_config = get_partition_grid_config(
+        grid_defaults, spn_config, common_data_folder
+    )
+    temp_grid_folder = grid_config["temporary_grid_location"]  # Save for cleanup
+    with open(os.path.join(scenario_dir, "PartitionGrid.toml"), "w") as f:
+        toml.dump(grid_config, f)
+
+    print(f"\nConfiguration for {scenario_name} saved in {scenario_dir}")
+    return temp_grid_folder
 
 
 def run_scenario(scenario_dir, scenario_name, generation_mode):
