@@ -1,21 +1,26 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use an official Python runtime as a parent image, as specified in the project's README.
+FROM python:3.11-slim
 
-# Set the working directory in the container
+# Set the working directory in the container to organize the project files.
 WORKDIR /app
 
-# Copy the dependency file first to leverage Docker cache
-COPY requirements.txt ./
-
-# Install any needed packages specified in requirements.txt
-# Using --no-cache-dir reduces the image size
+# Install uv, the recommended dependency management tool for this project.
+# Using --no-cache-dir reduces the image size by not storing the pip cache.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir uv
 
-# Copy the rest of the application's code
+# Copy the pyproject.toml file first to leverage Docker's build cache.
+# This ensures that dependencies are only re-installed when pyproject.toml changes.
+COPY pyproject.toml ./
+
+# Install the project dependencies using uv sync.
+# This command reads the pyproject.toml file and installs all required packages.
+# --system-site-packages ensures that the packages are installed in the global environment.
+RUN uv sync --system-site-packages
+
+# Copy the rest of the application's code into the container.
 COPY . .
 
-# The original CMD was ["pip", "list"], which is not very useful.
-# A better default would be to open a bash shell to allow the user
-# to run any script they want.
+# Set the default command to open a bash shell.
+# This provides an interactive environment for users to run scripts or explore the container.
 CMD ["/bin/bash"]
