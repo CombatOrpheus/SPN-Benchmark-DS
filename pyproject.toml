@@ -7,7 +7,6 @@ requires-python = ">=3.11"
 license = "MIT"
 
 dependencies = [
-    "dgl==2.1.0",
     # Core scientific and data handling packages
     "numpy==2.2.6",
     "scipy==1.16.1",
@@ -19,10 +18,6 @@ dependencies = [
     "joblib==1.5.2",
     "numba==0.61.2",
     "toml",
-
-    # Deep learning and GNN packages
-    "torch==2.8.0",
-    "torchvision==0.23.0",
 
     # Utilities
     "tqdm==4.67.1",

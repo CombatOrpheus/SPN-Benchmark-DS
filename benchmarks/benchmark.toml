@@ -1,0 +1,17 @@
+# Benchmark configuration for SPN data generation
+output_data_location = "bench_data"
+output_file = "benchmark_dataset.hdf5"
+output_format = "hdf5"
+number_of_samples_to_generate = 100
+number_of_parallel_jobs = 1
+minimum_number_of_places = 5
+maximum_number_of_places = 15
+minimum_number_of_transitions = 5
+maximum_number_of_transitions = 15
+place_upper_bound = 50
+marks_lower_limit = 10
+marks_upper_limit = 200
+enable_pruning = true
+enable_token_addition = true
+enable_transformations = false
+enable_statistics_report = false

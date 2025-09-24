@@ -9,3 +9,7 @@ Data/
 completed_configs/
 temp_configs/
 *.egg-info
+
+# Benchmark results
+*.csv
+*.png
