@@ -6,16 +6,26 @@ variations of a given Petri net structure and its firing rates.
 import numpy as np
 from joblib import Parallel, delayed
 from DataGenerate import SPN
+import numba
+from numba.core import types
+from numba.typed import List
 
 
-def _generate_candidate_matrices(base_petri_matrix, config):
-    """Generates candidate Petri net matrices based on the provided augmentation config."""
-    candidate_matrices = []
+@numba.jit(nopython=True, cache=True)
+def _generate_candidate_matrices_numba(
+    base_petri_matrix,
+    enable_delete_edge,
+    enable_add_edge,
+    enable_add_token,
+    enable_delete_token,
+):
+    """Numba-optimized function to generate candidate Petri net matrices."""
+    candidate_matrices = List()
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
 
     # Delete an edge
-    if config.get("enable_delete_edge", False):
+    if enable_delete_edge:
         for r in range(num_places):
             for c in range(num_cols - 1):
                 if base_petri_matrix[r, c] == 1:
@@ -24,7 +34,7 @@ def _generate_candidate_matrices(base_petri_matrix, config):
                     candidate_matrices.append(modified_matrix)
 
     # Add an edge
-    if config.get("enable_add_edge", False):
+    if enable_add_edge:
         for r in range(num_places):
             for c in range(num_cols - 1):
                 if base_petri_matrix[r, c] == 0:
@@ -33,29 +43,45 @@ def _generate_candidate_matrices(base_petri_matrix, config):
                     candidate_matrices.append(modified_matrix)
 
     # Add a token
-    if config.get("enable_add_token", False):
+    if enable_add_token:
         for r in range(num_places):
             modified_matrix = base_petri_matrix.copy()
             modified_matrix[r, -1] += 1
             candidate_matrices.append(modified_matrix)
 
     # Delete a token
-    if config.get("enable_delete_token", False) and np.sum(base_petri_matrix[:, -1]) > 1:
+    if enable_delete_token and np.sum(base_petri_matrix[:, -1]) > 1:
         for r in range(num_places):
             if base_petri_matrix[r, -1] >= 1:
                 modified_matrix = base_petri_matrix.copy()
                 modified_matrix[r, -1] -= 1
                 candidate_matrices.append(modified_matrix)
 
-    # Add a place
+    return candidate_matrices
+
+
+def _generate_candidate_matrices(base_petri_matrix, config):
+    """Generates candidate Petri net matrices based on the provided augmentation config."""
+    base_petri_matrix = base_petri_matrix.astype(np.int32)
+    candidate_matrices = _generate_candidate_matrices_numba(
+        base_petri_matrix,
+        config.get("enable_delete_edge", False),
+        config.get("enable_add_edge", False),
+        config.get("enable_add_token", False),
+        config.get("enable_delete_token", False),
+    )
+
+    # Add a place (handled outside Numba)
+    num_places, num_cols = base_petri_matrix.shape
+    num_transitions = (num_cols - 1) // 2
     if config.get("enable_add_place", False) and num_transitions > 0:
-        new_place_row = np.zeros((1, num_cols), dtype=int)
+        new_place_row = np.zeros((1, num_cols), dtype=np.int32)
         t_idx_to_connect = np.random.randint(0, num_transitions * 2)
         new_place_row[0, t_idx_to_connect] = 1
         modified_matrix = np.vstack([base_petri_matrix, new_place_row])
         candidate_matrices.append(modified_matrix)
 
-    return candidate_matrices
+    return list(candidate_matrices)
 
 
 def _generate_rate_variations(base_variation, num_variations):

@@ -158,9 +158,12 @@ def generate_stochastic_net_task_with_rates(
     return _run_sgn_task(vertices, edges, arc_transitions, np.array(transition_rates, dtype=float))
 
 
-def is_connected(petri_net_matrix: np.ndarray) -> bool:
+@numba.jit(nopython=True, cache=True)
+def is_connected(petri_net_matrix):
     """Checks if the Petri net has isolated places or transitions."""
     if petri_net_matrix.size == 0:
+        return False
+    if petri_net_matrix.ndim != 2:
         return False
     num_places, num_cols = petri_net_matrix.shape
     if num_places == 0 or num_cols < 3:
