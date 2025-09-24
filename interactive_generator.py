@@ -361,18 +361,26 @@ def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, gen
         bool,
         "If true, new raw data will be added to existing data in the temp folder.",
     )
-    grid_config["output_format"] = get_user_input(
-        "Final output format (hdf5 or jsonl)",
-        grid_defaults["output_format"],
-        str,
-        "The format for the final grid dataset.",
-    )
-    grid_config["output_file"] = get_user_input(
-        "Final output filename",
-        grid_defaults["output_file"],
-        str,
-        "Name of the final grid dataset file.",
-    )
+
+    # Get the output filename and derive the format from its extension
+    while True:
+        output_file = get_user_input(
+            "Final output filename (e.g., grid_data.hdf5 or grid_data.jsonl)",
+            grid_defaults["output_file"],
+            str,
+            "Name of the final grid dataset file.",
+        )
+        # Extract format from extension
+        name, ext = os.path.splitext(output_file)
+        output_format = ext.lstrip(".")
+
+        if output_format in ["hdf5", "jsonl"]:
+            grid_config["output_file"] = output_file
+            grid_config["output_format"] = output_format
+            print(f"  Output format automatically set to '{output_format}'.")
+            break
+        else:
+            print(f"Unsupported file extension: '{ext}'. Please use '.hdf5' or '.jsonl'.")
 
     # Derive paths and boundaries
     spn_output_dir = os.path.join(spn_config["output_data_location"], f"data_{spn_config['output_format']}")
