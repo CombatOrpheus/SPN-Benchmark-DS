@@ -27,7 +27,7 @@ def get_grid_index(value, grid_boundaries):
     for i, boundary in enumerate(grid_boundaries):
         if value < boundary:
             return i + 1
-    return len(grid_boundaries)
+    return len(grid_boundaries) + 1
 
 
 def _initialize_grid(grid_dir, accumulate_data, config):

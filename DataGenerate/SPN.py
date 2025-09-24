@@ -220,6 +220,7 @@ def filter_spn(
     Returns:
         A tuple containing the results dictionary and a success flag.
     """
+    petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
     if not is_connected(petri_net_matrix):
         return {}, False
 
@@ -259,6 +260,7 @@ def get_spn_info(
     transition_rates: np.ndarray,
 ) -> Tuple[Dict[str, Any], bool]:
     """Retrieves SPN info for a given structure and rates."""
+    petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
     if not is_connected(petri_net_matrix) or not vertices:
         return {}, False
 
