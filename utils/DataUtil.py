@@ -41,6 +41,25 @@ def load_json_file(file_path):
         return json.load(f)
 
 
+def load_jsonl_file(file_path):
+    """Loads data from a JSONL file, skipping the header.
+
+    Args:
+        file_path (str): The path to the JSONL file.
+
+    Yields:
+        dict: The data loaded from each line of the JSONL file.
+    """
+
+    with open(file_path, "r") as f:
+        # Skip the header line
+        next(f)
+        # Load each subsequent line as a JSON object
+        for line in f:
+            if line.strip():
+                yield json.loads(line)
+
+
 def load_toml_file(file_path):
     """Loads data from a TOML file.
 

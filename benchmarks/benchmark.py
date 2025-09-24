@@ -55,10 +55,7 @@ def main():
             print(f"{result['commit']:<10} | {'ERROR':<20}")
             print(f"  Error: {result['error']}")
         else:
-            print(
-                f"{result['commit'][:7]:<10} | "
-                f"{result['data_gen_time']:<20.4f}"
-            )
+            print(f"{result['commit'][:7]:<10} | " f"{result['data_gen_time']:<20.4f}")
 
 
 def run_command(command, error_message):
@@ -84,9 +81,7 @@ def benchmark_commit(commit, original_branch):
 
         print("--- Installing dependencies ---")
         run_command(["uv", "sync", "--all-extras"], "Failed to install dependencies.")
-        run_command(
-            ["uv", "pip", "install", "-e", "."], "Failed to install project in editable mode."
-        )
+        run_command(["uv", "pip", "install", "-e", "."], "Failed to install project in editable mode.")
 
         print("--- Benchmarking data generation ---")
         commit_results["data_gen_time"] = benchmark_data_generation()

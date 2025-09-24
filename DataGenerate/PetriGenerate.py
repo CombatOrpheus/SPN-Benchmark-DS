@@ -101,14 +101,14 @@ def delete_excess_edges(petri_matrix, num_transitions):
         if np.sum(petri_matrix[i, :-1]) >= 3:
             edge_indices = np.where(petri_matrix[i, :-1] == 1)[0]
             if len(edge_indices) > 2:
-                indices_to_remove = np.random.permutation(edge_indices)[:len(edge_indices) - 2]
+                indices_to_remove = np.random.permutation(edge_indices)[: len(edge_indices) - 2]
                 petri_matrix[i, indices_to_remove] = 0
 
     for i in range(2 * num_transitions):  # Iterate over transitions
         if np.sum(petri_matrix[:, i]) >= 3:
             edge_indices = np.where(petri_matrix[:, i] == 1)[0]
             if len(edge_indices) > 2:
-                indices_to_remove = np.random.permutation(edge_indices)[:len(edge_indices) - 2]
+                indices_to_remove = np.random.permutation(edge_indices)[: len(edge_indices) - 2]
                 petri_matrix[indices_to_remove, i] = 0
 
     return petri_matrix
