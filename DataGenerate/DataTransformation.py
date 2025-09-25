@@ -174,7 +174,7 @@ def generate_lambda_variations(petri_dict, num_lambda_variations):
 
     while len(lambda_variations) < num_lambda_variations:
         lambda_values = np.random.randint(1, 11, size=num_transitions)
-        results_dict, success = SPN.get_stochastic_petri_net(
+        results_dict, success = SPN.get_spn_info(
             petri_net,
             petri_dict["arr_vlist"],
             petri_dict["arr_edge"],

@@ -41,6 +41,25 @@ def load_json_file(file_path):
         return json.load(f)
 
 
+def load_jsonl_file(file_path):
+    """Loads data from a JSONL file, skipping the header.
+
+    Args:
+        file_path (str): The path to the JSONL file.
+
+    Yields:
+        dict: The data loaded from each line of the JSONL file.
+    """
+
+    with open(file_path, "r") as f:
+        # Skip the header line
+        next(f)
+        # Load each subsequent line as a JSON object
+        for line in f:
+            if line.strip():
+                yield json.loads(line)
+
+
 def load_toml_file(file_path):
     """Loads data from a TOML file.
 
@@ -208,8 +227,19 @@ def sample_json_files_from_directory(num_samples, directory_path):
     Returns:
         list: A list of dictionaries, each loaded from a sampled JSON file.
     """
+    if not os.path.exists(directory_path):
+        return []
+
     _, json_files = count_json_files(directory_path)
-    sampled_files = np.random.choice(json_files, num_samples, replace=False)
+
+    # If the directory is empty or has fewer files than requested, take all files
+    if not json_files:
+        return []
+
+    if len(json_files) < num_samples:
+        sampled_files = json_files
+    else:
+        sampled_files = np.random.choice(json_files, num_samples, replace=False)
 
     sampled_data = []
     for file_name in sampled_files:

@@ -71,6 +71,9 @@ def get_user_input(prompt, default, type_cast=str, help_text=""):
                 return default
 
 
+import numpy as np
+
+
 def get_user_input_for_list(prompt, default, help_text=""):
     """
     Gets user input that should evaluate to a list of integers, allowing for
@@ -108,22 +111,29 @@ def get_user_input_for_list(prompt, default, help_text=""):
             print("Please enter a valid Python expression (e.g., [1, 2, 3] or range(5)).")
 
 
+def _generate_grid_boundaries(min_val, max_val, num_bins):
+    """Generates a list of boundaries for a grid."""
+    if num_bins <= 0:
+        return []
+    # We use num_bins - 1 because if you have N bins, you have N-1 boundaries.
+    return np.linspace(min_val, max_val, num_bins + 1, dtype=int)[1:-1].tolist()
+
+
 def get_spn_generate_config(defaults, common_data_folder, generation_mode):
     """Interactively gets the configuration for SPNGenerate.py."""
-    print("\n--- Configuring SPNGenerate.py ---")
+    print("\n--- Configuring SPN Data Generation ---")
     config = {}
     config["output_data_location"] = os.path.join(common_data_folder, "raw")
     print(f"  Output data location is set to: {config['output_data_location']}")
 
-    config["output_file"] = get_user_input(
-        "Output filename",
-        "spn_dataset.jsonl",
-        str,
-        "Name of the output file. Must be .jsonl to be used by the next script.",
-    )
-    config["output_format"] = "jsonl"  # Hardcoded to jsonl as ObtainGridDS.py expects json
-
-    print("  Output format is set to 'jsonl' to be compatible with the next script.")
+    # In grid mode, the output must be a jsonl file for the next step.
+    if generation_mode == "grid":
+        config["output_file"] = "spn_dataset.jsonl"
+        config["output_format"] = "jsonl"
+        print("  Output file is set to 'spn_dataset.jsonl' for grid processing.")
+    else:
+        config["output_file"] = get_user_input("Output filename", "spn_dataset.jsonl", str, "Name of the output file.")
+        config["output_format"] = get_user_input("Output format", "jsonl", str, "File format for the output data.")
 
     if generation_mode == "random":
         config["dataset_sizes"] = get_user_input_for_list(
@@ -133,10 +143,10 @@ def get_spn_generate_config(defaults, common_data_folder, generation_mode):
         )
     else:  # grid mode
         config["number_of_samples_to_generate"] = get_user_input(
-            "Number of samples to generate",
+            "Number of raw samples to generate",
             defaults["number_of_samples_to_generate"],
             int,
-            "The number of SPN samples to generate for the grid.",
+            "The number of raw SPN samples to generate before grid partitioning.",
         )
 
     config["number_of_parallel_jobs"] = get_user_input(
@@ -199,74 +209,20 @@ def get_spn_generate_config(defaults, common_data_folder, generation_mode):
         bool,
         "A boolean indicating whether to apply transformations to the SPNs.",
     )
-    config["maximum_transformations_per_sample"] = get_user_input(
-        "Maximum transformations per sample",
-        defaults["maximum_transformations_per_sample"],
-        int,
-        "The maximum number of transformations to apply to each SPN.",
-    )
+    if config["enable_transformations"]:
+        config["maximum_transformations_per_sample"] = get_user_input(
+            "Maximum transformations per sample",
+            defaults["maximum_transformations_per_sample"],
+            int,
+            "The maximum number of transformations to apply to each SPN.",
+        )
+    else:
+        # Ensure this key exists to avoid errors, even if it's not used
+        config["maximum_transformations_per_sample"] = defaults.get("maximum_transformations_per_sample", 1)
+
     config["enable_visualization"] = False
     config["visualization_output_location"] = defaults["visualization_output_location"]
 
-    return config
-
-
-def get_partition_grid_config(defaults, spn_config, common_data_folder):
-    """Interactively gets the configuration for ObtainGridDS.py."""
-    print("\n--- Configuring ObtainGridDS.py ---")
-    config = {}
-
-    # The raw_data_location is determined by the output of the SPNGenerate script
-    spn_output_dir = os.path.join(spn_config["output_data_location"], f"data_{spn_config['output_format']}")
-    config["raw_data_location"] = os.path.join(spn_output_dir, spn_config["output_file"])
-    print(f"  Raw data location is set to: {config['raw_data_location']}")
-
-    config["temporary_grid_location"] = os.path.join(common_data_folder, "temp_grid")
-    print(f"  Temporary grid location is set to: {config['temporary_grid_location']}")
-
-    config["output_grid_location"] = os.path.join(common_data_folder, "grid")
-    print(f"  Output grid location is set to: {config['output_grid_location']}")
-
-    config["accumulation_data"] = get_user_input(
-        "Accumulate data",
-        defaults["accumulation_data"],
-        bool,
-        "A boolean indicating whether to accumulate data or start fresh.",
-    )
-
-    config["places_grid_boundaries"] = get_user_input_for_list(
-        "Places grid boundaries (e.g., [7, 9, 11] or range(7, 16, 2))",
-        "[7, 9, 11, 13, 15]",
-        "Boundaries for grid rows (number of places).",
-    )
-
-    config["markings_grid_boundaries"] = get_user_input_for_list(
-        "Markings grid boundaries (e.g., [8, 12, 16] or range(8, 45, 4))",
-        "[8, 12, 16, 20, 24, 28, 32, 36, 40, 44]",
-        "Boundaries for grid columns (number of markings).",
-    )
-
-    config["samples_per_grid"] = get_user_input(
-        "Samples per grid", defaults["samples_per_grid"], int, "The number of samples to take from each grid cell."
-    )
-    config["lambda_variations_per_sample"] = get_user_input(
-        "Lambda variations per sample",
-        defaults["lambda_variations_per_sample"],
-        int,
-        "The number of lambda variations to generate for each sample.",
-    )
-    config["output_format"] = get_user_input(
-        "Output format (hdf5 or jsonl)",
-        defaults["output_format"],
-        str,
-        "The format for the output data.",
-    )
-    config["output_file"] = get_user_input(
-        "Output filename",
-        defaults["output_file"],
-        str,
-        "Name of the output file.",
-    )
     return config
 
 
@@ -367,21 +323,91 @@ def configure_random_scenarios(spn_defaults, common_data_folder, generation_mode
 
 
 def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, generation_mode, scenario_name):
-    """Interactively configures one scenario for grid-based generation."""
+    """Interactively configures a scenario for grid-based generation with a simplified workflow."""
     scenario_dir = os.path.join("temp_configs", scenario_name)
     os.makedirs(scenario_dir, exist_ok=True)
 
+    # --- Part 1: Get SPN Generation Config ---
     spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
     with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
         toml.dump(spn_config, f)
 
-    grid_config = get_partition_grid_config(grid_defaults, spn_config, common_data_folder)
-    temp_grid_folder = grid_config["temporary_grid_location"]  # Save for cleanup
+    # --- Part 2: Get Simplified Grid Config & Derive Parameters ---
+    print("\n--- Configuring Grid Partitioning ---")
+    grid_config = {}
+
+    # Get simplified user inputs
+    num_place_bins = get_user_input(
+        "Number of grid bins for places", 5, int, "The number of divisions for the places axis of the grid."
+    )
+    num_marking_bins = get_user_input(
+        "Number of grid bins for markings", 10, int, "The number of divisions for the markings axis of the grid."
+    )
+    grid_config["samples_per_grid"] = get_user_input(
+        "Samples per grid cell",
+        grid_defaults["samples_per_grid"],
+        int,
+        "The number of samples to take from each grid cell.",
+    )
+    grid_config["lambda_variations_per_sample"] = get_user_input(
+        "Lambda variations per sample",
+        grid_defaults["lambda_variations_per_sample"],
+        int,
+        "The number of lambda variations to generate for each sample.",
+    )
+    grid_config["accumulation_data"] = get_user_input(
+        "Accumulate data in temporary grid",
+        grid_defaults["accumulation_data"],
+        bool,
+        "If true, new raw data will be added to existing data in the temp folder.",
+    )
+
+    # Get the output filename and derive the format from its extension
+    while True:
+        output_file = get_user_input(
+            "Final output filename (e.g., grid_data.hdf5 or grid_data.jsonl)",
+            grid_defaults["output_file"],
+            str,
+            "Name of the final grid dataset file.",
+        )
+        # Extract format from extension
+        name, ext = os.path.splitext(output_file)
+        output_format = ext.lstrip(".")
+
+        if output_format in ["hdf5", "jsonl"]:
+            grid_config["output_file"] = output_file
+            grid_config["output_format"] = output_format
+            print(f"  Output format automatically set to '{output_format}'.")
+            break
+        else:
+            print(f"Unsupported file extension: '{ext}'. Please use '.hdf5' or '.jsonl'.")
+
+    # Derive paths and boundaries
+    spn_output_dir = os.path.join(spn_config["output_data_location"], f"data_{spn_config['output_format']}")
+    grid_config["raw_data_location"] = os.path.join(spn_output_dir, spn_config["output_file"])
+    grid_config["temporary_grid_location"] = os.path.join(common_data_folder, "temp_grid")
+    grid_config["output_grid_location"] = os.path.join(common_data_folder, "grid")
+
+    grid_config["places_grid_boundaries"] = _generate_grid_boundaries(
+        spn_config["minimum_number_of_places"],
+        spn_config["maximum_number_of_places"],
+        num_place_bins,
+    )
+    grid_config["markings_grid_boundaries"] = _generate_grid_boundaries(
+        spn_config["marks_lower_limit"],
+        spn_config["marks_upper_limit"],
+        num_marking_bins,
+    )
+
+    print(f"  Derived place boundaries: {grid_config['places_grid_boundaries']}")
+    print(f"  Derived marking boundaries: {grid_config['markings_grid_boundaries']}")
+
+    # Save the derived grid config
     with open(os.path.join(scenario_dir, "PartitionGrid.toml"), "w") as f:
         toml.dump(grid_config, f)
 
     print(f"\nConfiguration for {scenario_name} saved in {scenario_dir}")
-    return temp_grid_folder
+    return grid_config.get("temporary_grid_location")
 
 
 def run_scenario(scenario_dir, scenario_name, generation_mode):

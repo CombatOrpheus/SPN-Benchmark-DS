@@ -27,7 +27,7 @@ def get_grid_index(value, grid_boundaries):
     for i, boundary in enumerate(grid_boundaries):
         if value < boundary:
             return i + 1
-    return len(grid_boundaries)
+    return len(grid_boundaries) + 1
 
 
 def _initialize_grid(grid_dir, accumulate_data, config):
@@ -67,9 +67,10 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
     col_m = grid_config["col_m"]
     dir_counts = np.array(grid_config["json_count"])
 
-    all_data = DU.load_json_file(raw_data_path)
+    # Load data from the JSONL file, which returns a generator
+    all_data_generator = DU.load_jsonl_file(raw_data_path)
 
-    for data in all_data.values():
+    for data in all_data_generator:
         p_idx = get_grid_index(len(data["petri_net"]), row_p)
         m_idx = get_grid_index(len(data["arr_vlist"]), col_m)
         dir_counts[p_idx - 1, m_idx - 1] += 1
