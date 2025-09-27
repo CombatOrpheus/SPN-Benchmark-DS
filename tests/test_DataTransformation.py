@@ -59,10 +59,10 @@ def test_generate_petri_net_variations(mock_rate_variations, mock_filter_spn, ba
     assert len(variations) > 0
 
 
-@patch("DataGenerate.SPN.get_stochastic_petri_net", create=True)
-def test_generate_lambda_variations(mock_get_spn, base_petri_matrix):
+@patch("DataGenerate.SPN.get_spn_info")
+def test_generate_lambda_variations(mock_get_spn_info, base_petri_matrix):
     """Test the generation of lambda variations."""
-    mock_get_spn.return_value = ({}, True)
+    mock_get_spn_info.return_value = ({}, True)
     petri_dict = {
         "petri_net": base_petri_matrix,
         "arr_vlist": [],
@@ -71,4 +71,4 @@ def test_generate_lambda_variations(mock_get_spn, base_petri_matrix):
     }
     variations = generate_lambda_variations(petri_dict, 5)
     assert len(variations) == 5
-    assert mock_get_spn.call_count == 5
+    assert mock_get_spn_info.call_count == 5

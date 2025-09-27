@@ -1,7 +1,5 @@
 name: SPN-Benchmarks
 channels:
-  - pytorch
-  - dglteam
   - conda-forge
   - defaults
 dependencies:
@@ -12,16 +10,9 @@ dependencies:
   - h5py
   - joblib
   - numba
-  # Deep learning and GNN
-  - pytorch
-  - torchvision
-  - dgl
-  - torch-scatter
   # Utilities
   - tqdm
   - graphviz
-  - tensorboard
-  - tensorboardx
   - scikit-learn
   - jsonpickle
   - jsonschema
@@ -29,8 +20,6 @@ dependencies:
   - xlrd
   - xlwt
   - xlutils
-  # Build-time
-  - cython
   # Pip-specific, if any, can be added here
   # - pip:
   #   - some-pip-package
