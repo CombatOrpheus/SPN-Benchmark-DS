@@ -18,41 +18,60 @@ def _generate_candidate_matrices_numba(
     enable_add_edge,
     enable_add_token,
     enable_delete_token,
+    max_edge_changes=5,
 ):
-    """Numba-optimized function to generate candidate Petri net matrices."""
+    """
+    Numba-optimized function to generate candidate Petri net matrices using a
+    randomized approach.
+    """
     candidate_matrices = List()
     num_places, num_cols = base_petri_matrix.shape
-    num_transitions = (num_cols - 1) // 2
 
-    # Delete an edge
+    # --- Randomized Edge Deletion ---
     if enable_delete_edge:
-        for r in range(num_places):
-            for c in range(num_cols - 1):
-                if base_petri_matrix[r, c] == 1:
-                    modified_matrix = base_petri_matrix.copy()
-                    modified_matrix[r, c] = 0
-                    candidate_matrices.append(modified_matrix)
+        edge_rows, edge_cols = np.where(base_petri_matrix[:, :-1] == 1)
+        num_edges = len(edge_rows)
+        if num_edges > 0:
+            num_to_delete = min(num_edges, max_edge_changes)
+            indices_to_delete = np.random.permutation(num_edges)[:num_to_delete]
+            for i in indices_to_delete:
+                r, c = edge_rows[i], edge_cols[i]
+                modified_matrix = base_petri_matrix.copy()
+                modified_matrix[r, c] = 0
+                candidate_matrices.append(modified_matrix)
 
-    # Add an edge
+    # --- Randomized Edge Addition ---
     if enable_add_edge:
-        for r in range(num_places):
-            for c in range(num_cols - 1):
-                if base_petri_matrix[r, c] == 0:
-                    modified_matrix = base_petri_matrix.copy()
-                    modified_matrix[r, c] = 1
-                    candidate_matrices.append(modified_matrix)
+        zero_rows, zero_cols = np.where(base_petri_matrix[:, :-1] == 0)
+        num_zeros = len(zero_rows)
+        if num_zeros > 0:
+            num_to_add = min(num_zeros, max_edge_changes)
+            indices_to_add = np.random.permutation(num_zeros)[:num_to_add]
+            for i in indices_to_add:
+                r, c = zero_rows[i], zero_cols[i]
+                modified_matrix = base_petri_matrix.copy()
+                modified_matrix[r, c] = 1
+                candidate_matrices.append(modified_matrix)
 
-    # Add a token
+    # --- Token Addition ---
     if enable_add_token:
-        for r in range(num_places):
+        # To avoid too many candidates, we add a token to a few random places
+        num_to_change = min(num_places, max_edge_changes)
+        places_to_add_token = np.random.permutation(num_places)[:num_to_change]
+        for r in places_to_add_token:
             modified_matrix = base_petri_matrix.copy()
             modified_matrix[r, -1] += 1
             candidate_matrices.append(modified_matrix)
 
-    # Delete a token
+    # --- Token Deletion ---
     if enable_delete_token and np.sum(base_petri_matrix[:, -1]) > 1:
-        for r in range(num_places):
-            if base_petri_matrix[r, -1] >= 1:
+        # Find places with tokens and randomly select a few to decrement
+        token_places = np.where(base_petri_matrix[:, -1] >= 1)[0]
+        num_token_places = len(token_places)
+        if num_token_places > 0:
+            num_to_change = min(num_token_places, max_edge_changes)
+            places_to_delete_token = token_places[np.random.permutation(num_token_places)[:num_to_change]]
+            for r in places_to_delete_token:
                 modified_matrix = base_petri_matrix.copy()
                 modified_matrix[r, -1] -= 1
                 candidate_matrices.append(modified_matrix)
@@ -141,10 +160,13 @@ def generate_petri_net_variations(petri_matrix, config):
     marks_lower = config.get("marks_lower_limit", 4)
     marks_upper = config.get("marks_upper_limit", 500)
 
-    results = Parallel(n_jobs=parallel_jobs)(
-        delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices
-    )
-    structural_variations = [res for res, success in results if success]
+    # Process candidates sequentially to avoid nested parallelism issues,
+    # as this function is often called from a parallelized loop.
+    structural_variations = []
+    for matrix in candidate_matrices:
+        res, success = SPN.filter_spn(matrix, place_bound, marks_lower, marks_upper)
+        if success:
+            structural_variations.append(res)
 
     all_augmented_data = []
     all_augmented_data.extend(structural_variations)

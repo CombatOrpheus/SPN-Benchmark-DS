@@ -9,7 +9,7 @@ import subprocess
 import h5py
 import numpy as np
 from joblib import Parallel, delayed
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from DataGenerate import DataTransformation as DT
 from DataGenerate import PetriGenerate as PeGen
@@ -18,23 +18,26 @@ from utils import DataUtil as DU
 from utils import FileWriter as FW
 
 
-def generate_single_spn(config):
-    """Generates a single SPN sample.
+def generate_spn_batch(config, batch_size):
+    """Generates a batch of SPN samples in parallel and filters them.
 
     Args:
         config (dict): Configuration dictionary for SPN generation.
+        batch_size (int): The number of SPNs to generate in the batch.
 
     Returns:
-        dict or None: A dictionary containing the SPN data, or None if generation fails.
+        list: A list of valid SPN sample dictionaries.
     """
-    max_attempts = 100
-    for _ in range(max_attempts):
-        place_num = np.random.randint(config["minimum_number_of_places"], config["maximum_number_of_places"] + 1)
-        trans_num = np.random.randint(
-            config["minimum_number_of_transitions"], config["maximum_number_of_transitions"] + 1
-        )
+    place_num = np.random.randint(config["minimum_number_of_places"], config["maximum_number_of_places"] + 1)
+    trans_num = np.random.randint(
+        config["minimum_number_of_transitions"], config["maximum_number_of_transitions"] + 1
+    )
 
-        petri_matrix = PeGen.generate_random_petri_net(place_num, trans_num)
+    # Generate a batch of Petri nets using the vectorized function
+    petri_nets = PeGen.generate_random_petri_net(place_num, trans_num, num_spns=batch_size)
+
+    def process_single_net(petri_matrix):
+        """Helper function to process one Petri net."""
         if config.get("enable_pruning"):
             petri_matrix = PeGen.prune_petri_net(petri_matrix)
         if config.get("enable_token_addition"):
@@ -46,9 +49,14 @@ def generate_single_spn(config):
             config["marks_lower_limit"],
             config["marks_upper_limit"],
         )
-        if success:
-            return results
-    return None
+        return results if success else None
+
+    # Process the batch in parallel
+    results = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
+        delayed(process_single_net)(petri_nets[i]) for i in range(batch_size)
+    )
+
+    return [res for res in results if res is not None]
 
 
 def augment_single_spn(sample, config):
@@ -148,11 +156,23 @@ def run_generation_from_config(config):
     DU.create_directory(output_dir)
     output_path = os.path.join(output_dir, config["output_file"])
 
-    print(f"Generating {config['number_of_samples_to_generate']} initial SPN samples...")
-    initial_samples = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
-        delayed(generate_single_spn)(config) for _ in trange(config["number_of_samples_to_generate"])
-    )
-    valid_samples = [s for s in initial_samples if s is not None]
+    num_samples_to_generate = config["number_of_samples_to_generate"]
+    print(f"Generating {num_samples_to_generate} initial SPN samples...")
+
+    valid_samples = []
+    with tqdm(total=num_samples_to_generate, desc="Generating SPNs") as pbar:
+        while len(valid_samples) < num_samples_to_generate:
+            num_needed = num_samples_to_generate - len(valid_samples)
+            # Generate a slightly larger batch to account for filtering losses
+            batch_size = int(num_needed * 1.2) + 10
+
+            new_samples = generate_spn_batch(config, batch_size)
+
+            # Add new valid samples, ensuring not to overshoot the target
+            num_to_add = min(len(new_samples), num_needed)
+            valid_samples.extend(new_samples[:num_to_add])
+            pbar.update(num_to_add)
+
     print(f"Generated {len(valid_samples)} valid initial samples.")
 
     all_samples = []

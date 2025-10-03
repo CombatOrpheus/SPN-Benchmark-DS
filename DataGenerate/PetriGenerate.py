@@ -2,72 +2,123 @@
 This module provides functions for generating and modifying Petri nets.
 """
 
-from random import choice
 import numpy as np
 import numba
 
-
-def _initialize_petri_net(num_places, num_transitions):
-    """Initializes the Petri net matrix and selects the first connection."""
-    remaining_nodes = list(range(1, num_places + num_transitions + 1))
-    petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype="int32")
-
-    first_place = choice(range(num_places)) + 1
-    first_transition = choice(range(num_transitions)) + num_places + 1
-
-    remaining_nodes.remove(first_place)
-    remaining_nodes.remove(first_transition)
-
-    if np.random.rand() <= 0.5:
-        petri_matrix[first_place - 1, first_transition - num_places - 1] = 1
-    else:
-        petri_matrix[first_place - 1, first_transition - num_places - 1 + num_transitions] = 1
-
-    np.random.shuffle(remaining_nodes)
-    sub_graph = np.array([first_place, first_transition])
-    return petri_matrix, remaining_nodes, sub_graph
-
-
-def _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions):
-    """Connects the remaining nodes to the sub-graph."""
-    for node in np.random.permutation(remaining_nodes):
-        sub_places = sub_graph[sub_graph <= num_places]
-        sub_transitions = sub_graph[sub_graph > num_places]
-
-        if node <= num_places:
-            place = node
-            transition = choice(sub_transitions)
-        else:
-            place = choice(sub_places)
-            transition = node
-
-        if np.random.rand() <= 0.5:
-            petri_matrix[place - 1, transition - num_places - 1] = 1
-        else:
-            petri_matrix[place - 1, transition - num_places - 1 + num_transitions] = 1
-
-        sub_graph = np.concatenate((sub_graph, [node]))
-    return petri_matrix
-
-
-def generate_random_petri_net(num_places, num_transitions):
-    """Generates a random Petri net matrix.
+def generate_random_petri_net(num_places, num_transitions, num_spns=1):
+    """
+    Generates one or more random Petri net matrices using a vectorized approach.
 
     Args:
         num_places (int): The number of places.
         num_transitions (int): The number of transitions.
+        num_spns (int): The number of SPNs to generate in parallel.
 
     Returns:
-        np.ndarray: The generated Petri net matrix.
+        np.ndarray: A 3D array of shape (num_spns, num_places, 2 * num_transitions + 1)
+                    if num_spns > 1, or a 2D array if num_spns == 1.
     """
-    petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(num_places, num_transitions)
-    petri_matrix = _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions)
+    # Initialize a 3D tensor to hold the batch of Petri nets.
+    # Shape: (num_spns, num_places, 2 * num_transitions + 1)
+    petri_nets = np.zeros((num_spns, num_places, 2 * num_transitions + 1), dtype=np.int32)
 
-    # Add an initial marking
-    random_place = np.random.randint(0, num_places)
-    petri_matrix[random_place, -1] = 1
+    # For each SPN in the batch, select a random starting place and transition.
+    # These arrays will hold the indices for the initial connections.
+    initial_places = np.random.randint(0, num_places, size=num_spns)
+    initial_transitions = np.random.randint(0, num_transitions, size=num_spns)
 
-    return petri_matrix
+    # For each SPN, decide the direction of the first edge (pre- or post-transition).
+    # A value of 0 means pre (place to transition), 1 means post (transition to place).
+    initial_directions = np.random.randint(0, 2, size=num_spns)
+
+    # Create the first connection for each SPN in the batch.
+    # We use advanced indexing with a batch index array to update the tensor in one go.
+    batch_indices = np.arange(num_spns)
+    petri_nets[batch_indices, initial_places, initial_transitions + initial_directions * num_transitions] = 1
+
+    # Keep track of which nodes (places and transitions) are connected in each SPN.
+    # These boolean masks will be updated as we add new nodes.
+    # Shape: (num_spns, num_places + num_transitions)
+    connected_nodes = np.zeros((num_spns, num_places + num_transitions), dtype=bool)
+    connected_nodes[batch_indices, initial_places] = True
+    connected_nodes[batch_indices, num_places + initial_transitions] = True
+
+    # Create a list of all nodes for each SPN and shuffle them.
+    # This determines the order in which we will connect the remaining nodes.
+    nodes_to_connect = np.tile(np.arange(num_places + num_transitions), (num_spns, 1))
+    np.apply_along_axis(np.random.shuffle, 1, nodes_to_connect)
+
+    # Iterate through the shuffled nodes and connect them to the existing graph.
+    for i in range(num_places + num_transitions):
+        current_nodes = nodes_to_connect[:, i]
+
+        # For each SPN, check if the current node is already connected.
+        # This is done by looking up its status in the `connected_nodes` mask.
+        is_connected_mask = connected_nodes[batch_indices, current_nodes]
+
+        # We only need to connect nodes that are not yet part of the graph.
+        # This mask identifies the SPNs where a new connection is needed.
+        needs_connection_mask = ~is_connected_mask
+
+        if np.any(needs_connection_mask):
+            # Get the indices of the SPNs that require a new connection.
+            active_batch_indices = batch_indices[needs_connection_mask]
+
+            # Get the nodes to be added for this subset of SPNs.
+            nodes_to_add = current_nodes[needs_connection_mask]
+
+            # Separate the new nodes into places and transitions.
+            is_place_mask = nodes_to_add < num_places
+
+            # For new places, connect them to a random existing transition.
+            if np.any(is_place_mask):
+                place_indices = active_batch_indices[is_place_mask]
+                new_places = nodes_to_add[is_place_mask]
+
+                # Get the connected transitions for each relevant SPN.
+                connected_transitions = connected_nodes[place_indices, num_places:]
+
+                # Choose a random connected transition for each new place.
+                random_trans_indices = np.array([np.random.choice(np.where(row)[0]) for row in connected_transitions])
+
+                # Decide the edge direction (pre or post).
+                directions = np.random.randint(0, 2, size=len(place_indices))
+
+                # Add the new edges to the Petri net tensor.
+                petri_nets[place_indices, new_places, random_trans_indices + directions * num_transitions] = 1
+
+                # Mark the new places as connected.
+                connected_nodes[place_indices, new_places] = True
+
+            # For new transitions, connect them to a random existing place.
+            if np.any(~is_place_mask):
+                transition_indices = active_batch_indices[~is_place_mask]
+                new_transitions = nodes_to_add[~is_place_mask] - num_places
+
+                # Get the connected places for each relevant SPN.
+                connected_places = connected_nodes[transition_indices, :num_places]
+
+                # Choose a random connected place for each new transition.
+                random_place_indices = np.array([np.random.choice(np.where(row)[0]) for row in connected_places])
+
+                # Decide the edge direction.
+                directions = np.random.randint(0, 2, size=len(transition_indices))
+
+                # Add the new edges to the Petri net tensor.
+                petri_nets[transition_indices, random_place_indices, new_transitions + directions * num_transitions] = 1
+
+                # Mark the new transitions as connected.
+                connected_nodes[transition_indices, num_places + new_transitions] = True
+
+    # Add an initial marking to one random place in each SPN.
+    random_places_for_marking = np.random.randint(0, num_places, size=num_spns)
+    petri_nets[batch_indices, random_places_for_marking, -1] = 1
+
+    # If only one SPN was generated, return it as a 2D array to maintain backward compatibility.
+    if num_spns == 1:
+        return petri_nets[0]
+
+    return petri_nets
 
 
 @numba.jit(nopython=True, cache=True)
