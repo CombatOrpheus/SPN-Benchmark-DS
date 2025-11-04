@@ -58,7 +58,7 @@ def save_statistics_to_excel(save_dir, dataset_name, row_boundaries, col_boundar
         distribution_count (np.ndarray): The distribution count matrix.
     """
     DU.create_directory(save_dir)
-    excel_tool = ExcelTool(save_dir, f"static_{dataset_name}.xls", dataset_name)
+    excel_tool = ExcelTool(save_dir, f"static_{dataset_name}.xlsx", dataset_name)
 
     excel_tool.write_xls([["Data Distribution"]])
     excel_tool.write_xls_append([row_boundaries])
