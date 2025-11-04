@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 import toml
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -11,8 +11,9 @@ def create_directory(path):
     Args:
         path (str): The path of the directory to create.
     """
-    if not os.path.exists(path):
-        os.makedirs(path)
+    path = Path(path)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
         print(f"Directory created: {path}")
 
 
@@ -82,9 +83,10 @@ def load_all_data_from_json_directory(directory_path):
     Yields:
         dict: The data loaded from each JSON file.
     """
-    json_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-5]))
+    directory_path = Path(directory_path)
+    json_files = sorted(directory_path.iterdir(), key=lambda x: int(x.name[4:-5]))
     for json_file in json_files:
-        yield load_json_file(os.path.join(directory_path, json_file))
+        yield load_json_file(json_file)
 
 
 def count_json_files(directory_path):
@@ -96,7 +98,8 @@ def count_json_files(directory_path):
     Returns:
         tuple: A tuple containing the number of JSON files and a list of their names.
     """
-    json_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-5]))
+    directory_path = Path(directory_path)
+    json_files = sorted([p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".json"], key=lambda x: int(x[4:-5]))
     return len(json_files), json_files
 
 
@@ -109,10 +112,11 @@ def load_all_data_from_txt_directory(directory_path):
     Returns:
         list: A list of numpy.ndarray, each containing the data from a text file.
     """
-    txt_files = sorted(os.listdir(directory_path), key=lambda x: int(x[4:-4]))
+    directory_path = Path(directory_path)
+    txt_files = sorted(directory_path.iterdir(), key=lambda x: int(x.name[4:-4]))
     all_data = []
     for txt_file in txt_files:
-        data = load_data_from_txt(os.path.join(directory_path, txt_file))
+        data = load_data_from_txt(txt_file)
         all_data.append(data)
     return all_data
 
@@ -136,12 +140,12 @@ def get_all_txt_files_in_subdirectories(directory_path):
     Returns:
         list: A list of full paths to all text files.
     """
-    subdirectories = sorted(os.listdir(directory_path), key=lambda x: int(x[4:]))
+    directory_path = Path(directory_path)
+    subdirectories = sorted([d for d in directory_path.iterdir() if d.is_dir()], key=lambda x: int(x.name[4:]))
     all_txt_files = []
     for subdir in subdirectories:
-        subdir_path = os.path.join(directory_path, subdir)
-        txt_files = sorted(os.listdir(subdir_path), key=lambda x: int(x[4:-4]))
-        full_paths = [os.path.join(subdir_path, f) for f in txt_files]
+        txt_files = sorted([f for f in subdir.iterdir() if f.is_file() and f.suffix == ".txt"], key=lambda x: int(x.name[4:-4]))
+        full_paths = [subdir / f.name for f in txt_files]
         all_txt_files.extend(full_paths)
     return all_txt_files
 
@@ -156,10 +160,11 @@ def load_arrivable_graph_data(directory_path, index):
     Returns:
         tuple: A tuple containing the node data, hu data, pb data, and transition number.
     """
-    pb_data = load_data_from_txt(os.path.join(directory_path, f"pb_data{index}.txt")).astype(int)
-    node_data = load_data_from_txt(os.path.join(directory_path, f"node_data{index}.txt")).astype(int)
-    hu_data = load_data_from_txt(os.path.join(directory_path, f"hu_data{index}.txt")).astype(int)
-    tran_num = load_data_from_txt(os.path.join(directory_path, f"tran_data{index}.txt")).astype(int)
+    directory_path = Path(directory_path)
+    pb_data = load_data_from_txt(directory_path / f"pb_data{index}.txt").astype(int)
+    node_data = load_data_from_txt(directory_path / f"node_data{index}.txt").astype(int)
+    hu_data = load_data_from_txt(directory_path / f"hu_data{index}.txt").astype(int)
+    tran_num = load_data_from_txt(directory_path / f"tran_data{index}.txt").astype(int)
     return node_data, hu_data, pb_data, tran_num
 
 
@@ -183,7 +188,8 @@ def get_all_txt_files_in_directory(directory_path):
     Returns:
         list: A list of text file names.
     """
-    return sorted(os.listdir(directory_path), key=lambda x: int(x[4:-4]))
+    directory_path = Path(directory_path)
+    return sorted([p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".txt"], key=lambda x: int(x[4:-4]))
 
 
 def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
@@ -227,7 +233,8 @@ def sample_json_files_from_directory(num_samples, directory_path):
     Returns:
         list: A list of dictionaries, each loaded from a sampled JSON file.
     """
-    if not os.path.exists(directory_path):
+    directory_path = Path(directory_path)
+    if not directory_path.exists():
         return []
 
     _, json_files = count_json_files(directory_path)
@@ -243,7 +250,7 @@ def sample_json_files_from_directory(num_samples, directory_path):
 
     sampled_data = []
     for file_name in sampled_files:
-        file_path = os.path.join(directory_path, file_name)
+        file_path = directory_path / file_name
         data = load_json_file(file_path)
         # Filter out noisy data
         if -100 <= data["spn_mu"] <= 100:
@@ -253,7 +260,7 @@ def sample_json_files_from_directory(num_samples, directory_path):
             while True:
                 new_file_name = np.random.choice(json_files, 1, replace=False)[0]
                 if new_file_name not in sampled_files:
-                    new_file_path = os.path.join(directory_path, new_file_name)
+                    new_file_path = directory_path / new_file_name
                     new_data = load_json_file(new_file_path)
                     if -100 <= new_data["spn_mu"] <= 100:
                         sampled_data.append(new_data)
@@ -319,10 +326,11 @@ def partition_datasets(json_data_directory, node_feature_num, test_ratio=0.2):
         node_feature_num (int): The number of node features.
         test_ratio (float, optional): The ratio of data to be used for testing. Defaults to 0.2.
     """
-    original_data_dir = os.path.join(json_data_directory, "ori_data")
-    preprocessed_data_dir = os.path.join(json_data_directory, "preprocessd_data")
+    json_data_directory = Path(json_data_directory)
+    original_data_dir = json_data_directory / "ori_data"
+    preprocessed_data_dir = json_data_directory / "preprocessd_data"
 
-    all_data_path = os.path.join(original_data_dir, "all_data.json")
+    all_data_path = original_data_dir / "all_data.json"
     all_data = load_json_file(all_data_path)
 
     train_data, test_data = train_test_split(list(all_data.values()), test_size=test_ratio, random_state=0)
@@ -330,15 +338,15 @@ def partition_datasets(json_data_directory, node_feature_num, test_ratio=0.2):
     train_data_dict = create_data_dictionary(train_data)
     test_data_dict = create_data_dictionary(test_data)
 
-    save_data_to_json_file(os.path.join(original_data_dir, "train_data.json"), train_data_dict)
-    save_data_to_json_file(os.path.join(original_data_dir, "test_data.json"), test_data_dict)
+    save_data_to_json_file(original_data_dir / "train_data.json", train_data_dict)
+    save_data_to_json_file(original_data_dir / "test_data.json", test_data_dict)
 
     create_directory(preprocessed_data_dir)
 
-    train_preprocessed_path = os.path.join(preprocessed_data_dir, "train_data.json")
+    train_preprocessed_path = preprocessed_data_dir / "train_data.json"
     _preprocess_and_save_data(train_data_dict, node_feature_num, train_preprocessed_path)
 
-    test_preprocessed_path = os.path.join(preprocessed_data_dir, "test_data.json")
+    test_preprocessed_path = preprocessed_data_dir / "test_data.json"
     _preprocess_and_save_data(test_data_dict, node_feature_num, test_preprocessed_path)
 
 

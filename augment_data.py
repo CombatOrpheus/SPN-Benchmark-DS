@@ -5,7 +5,7 @@ and saves the newly generated variations to an output file.
 """
 
 import argparse
-import os
+from pathlib import Path
 import json
 import h5py
 import numpy as np
@@ -47,7 +47,8 @@ def setup_arg_parser():
 
 def load_dataset(filepath):
     """Loads a full dataset from an HDF5 or JSONL file."""
-    file_ext = os.path.splitext(filepath)[1]
+    filepath = Path(filepath)
+    file_ext = filepath.suffix
     samples = []
     print(f"Loading dataset from {filepath}...")
     if file_ext == ".hdf5":
@@ -70,10 +71,11 @@ def load_dataset(filepath):
 
 def save_dataset(filepath, samples, config):
     """Saves a dataset to an HDF5 or JSONL file."""
-    file_ext = os.path.splitext(filepath)[1]
-    output_dir = os.path.dirname(filepath)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    filepath = Path(filepath)
+    file_ext = filepath.suffix
+    output_dir = filepath.parent
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
 
     print(f"Saving {len(samples)} augmented samples to {filepath}...")
     if file_ext == ".hdf5":
@@ -107,17 +109,19 @@ def main():
     args = parser.parse_args()
 
     # Load configuration
-    if not os.path.exists(args.config):
-        print(f"Error: Config file not found at {args.config}")
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"Error: Config file not found at {config_path}")
         return
-    config = DU.load_toml_file(args.config)
-    print(f"Augmentation config loaded from {args.config}")
+    config = DU.load_toml_file(config_path)
+    print(f"Augmentation config loaded from {config_path}")
 
     # Load dataset
-    if not os.path.exists(args.input):
-        print(f"Error: Input file not found at {args.input}")
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found at {input_path}")
         return
-    input_samples = load_dataset(args.input)
+    input_samples = load_dataset(input_path)
 
     if not input_samples:
         print("No samples found in the input dataset. Exiting.")

@@ -1,5 +1,5 @@
 # coding=UTF-8
-import os
+from pathlib import Path
 import openpyxl
 from openpyxl import Workbook
 
@@ -7,18 +7,19 @@ from openpyxl import Workbook
 class ExcelTool:
     def __init__(self, path, book_name_xls, sheet_name_xls):
         super(ExcelTool, self).__init__()
-        self.path = path
+        self.path = Path(path)
         # Ensure the file extension is .xlsx
-        if not book_name_xls.endswith('.xlsx'):
-            self.book_name_xls = os.path.splitext(book_name_xls)[0] + '.xlsx'
+        book_path = Path(book_name_xls)
+        if book_path.suffix != '.xlsx':
+            self.book_name_xls = book_path.with_suffix('.xlsx')
         else:
-            self.book_name_xls = book_name_xls
-        self.excel_loc = os.path.join(self.path, self.book_name_xls)
+            self.book_name_xls = book_path
+        self.excel_loc = self.path / self.book_name_xls
         self.sheet_name_xls = sheet_name_xls
 
     def write_xls(self, value):
-        if not os.path.exists(self.path):
-            os.makedirs(self.path, exist_ok=True)
+        if not self.path.exists():
+            self.path.mkdir(parents=True, exist_ok=True)
 
         workbook = Workbook()
         sheet = workbook.active
@@ -32,7 +33,7 @@ class ExcelTool:
         print("xlsx file created successfully!")
 
     def write_xls_append(self, value):
-        if not os.path.exists(self.excel_loc):
+        if not self.excel_loc.exists():
             # If the file doesn't exist, create it with the initial data
             self.write_xls(value)
             return
@@ -49,7 +50,7 @@ class ExcelTool:
         print("Data appended to xlsx file successfully!")
 
     def read_excel_xls(self):
-        if not os.path.exists(self.excel_loc):
+        if not self.excel_loc.exists():
             print(f"Error: File '{self.excel_loc}' not found.")
             return
 
@@ -69,7 +70,7 @@ class ExcelTool:
             ------
             none
         """
-        if not os.path.exists(self.excel_loc):
+        if not self.excel_loc.exists():
             # If the file doesn't exist, create it with blank lines
             workbook = Workbook()
             sheet = workbook.active

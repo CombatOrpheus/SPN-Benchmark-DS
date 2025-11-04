@@ -5,7 +5,7 @@ and the configuration used to generate it. The final output is an HTML file.
 """
 
 import argparse
-import os
+from pathlib import Path
 import json
 import base64
 from io import BytesIO
@@ -40,7 +40,8 @@ def setup_arg_parser():
 
 def load_data(filepath):
     """Loads data from HDF5 or JSONL and extracts key statistics."""
-    file_ext = os.path.splitext(filepath)[1]
+    filepath = Path(filepath)
+    file_ext = filepath.suffix
     stats_list = []
     config = {}
 
@@ -98,11 +99,12 @@ def main():
     parser = setup_arg_parser()
     args = parser.parse_args()
 
-    if not os.path.exists(args.input):
-        print(f"Error: Input file not found at {args.input}")
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found at {input_path}")
         return
 
-    stats_df, config = load_data(args.input)
+    stats_df, config = load_data(input_path)
 
     if stats_df.empty:
         print("No data loaded. Exiting.")

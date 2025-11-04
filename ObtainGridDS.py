@@ -4,7 +4,7 @@ It partitions the data into a grid, samples from each grid cell, and then
 packages the data for use with DGL.
 """
 
-import os
+from pathlib import Path
 import time
 import numpy as np
 import h5py
@@ -32,8 +32,9 @@ def get_grid_index(value, grid_boundaries):
 
 def _initialize_grid(grid_dir, accumulate_data, config):
     """Initializes the grid structure and configuration."""
-    config_path = os.path.join(grid_dir, "config.json")
-    if os.path.exists(config_path) and accumulate_data:
+    grid_dir = Path(grid_dir)
+    config_path = grid_dir / "config.json"
+    if config_path.exists() and accumulate_data:
         grid_config = DU.load_json_file(config_path)
     else:
         # Use boundaries from the main config, with fallbacks to the old hardcoded values
@@ -48,7 +49,7 @@ def _initialize_grid(grid_dir, accumulate_data, config):
     # The number of directories is one more than the number of boundaries
     for i in range(len(grid_config["row_p"]) + 1):
         for j in range(len(grid_config["col_m"]) + 1):
-            DU.create_directory(os.path.join(grid_dir, f"p{i+1}", f"m{j+1}"))
+            DU.create_directory(grid_dir / f"p{i+1}" / f"m{j+1}")
 
     return grid_config
 
@@ -62,6 +63,7 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
         raw_data_path (str): The path to the raw data JSON file.
         config (dict): The configuration dictionary.
     """
+    grid_dir = Path(grid_dir)
     grid_config = _initialize_grid(grid_dir, accumulate_data, config)
     row_p = grid_config["row_p"]
     col_m = grid_config["col_m"]
@@ -75,21 +77,21 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
         m_idx = get_grid_index(len(data["arr_vlist"]), col_m)
         dir_counts[p_idx - 1, m_idx - 1] += 1
 
-        save_path = os.path.join(
-            grid_dir,
-            f"p{p_idx}",
-            f"m{m_idx}",
-            f"data{int(dir_counts[p_idx-1, m_idx-1])}.json",
+        save_path = (
+            grid_dir
+            / f"p{p_idx}"
+            / f"m{m_idx}"
+            / f"data{int(dir_counts[p_idx-1, m_idx-1])}.json"
         )
         DU.save_data_to_json_file(save_path, data)
 
     grid_config["json_count"] = dir_counts.tolist()
-    DU.save_data_to_json_file(os.path.join(grid_dir, "config.json"), grid_config)
+    DU.save_data_to_json_file(grid_dir / "config.json", grid_config)
 
 
 def sample_and_transform_data(config):
     """Samples data from the grid and applies transformations."""
-    grid_data_loc = os.path.join(config["temporary_grid_location"], "p%s", "m%s")
+    grid_data_loc = Path(config["temporary_grid_location"])
     all_data = []
 
     # Use the length of the boundaries to determine the grid size
@@ -98,8 +100,9 @@ def sample_and_transform_data(config):
 
     for i in range(num_place_bins):
         for j in range(num_marking_bins):
+            directory_path = grid_data_loc / f"p{i+1}" / f"m{j+1}"
             sampled_list = DU.sample_json_files_from_directory(
-                config["samples_per_grid"], grid_data_loc % (i + 1, j + 1)
+                config["samples_per_grid"], str(directory_path)
             )
             all_data.extend(sampled_list)
 
@@ -113,10 +116,10 @@ def sample_and_transform_data(config):
 
 def package_dataset(config, data):
     """Saves the processed data into the specified format (HDF5 or JSON-L)."""
-    save_dir = config["output_grid_location"]
+    save_dir = Path(config["output_grid_location"])
     output_format = config.get("output_format", "hdf5")
     output_file = config.get("output_file", f"grid_dataset.{output_format}")
-    output_path = os.path.join(save_dir, output_file)
+    output_path = save_dir / output_file
 
     DU.create_directory(save_dir)
 

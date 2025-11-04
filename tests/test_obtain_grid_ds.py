@@ -1,5 +1,5 @@
 import pytest
-import os
+from pathlib import Path
 import shutil
 import toml
 import h5py
@@ -9,7 +9,7 @@ import numpy as np
 # Make sure the script can find the root modules
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(str(Path(__file__).parent.parent.absolute()))
 
 import SPNGenerate
 import ObtainGridDS
@@ -21,19 +21,19 @@ class TestObtainGridDS:
 
     def setup_method(self):
         """Set up a temporary directory for test artifacts."""
-        self.temp_dir = "tests/temp_test_data"
-        self.raw_data_loc = os.path.join(self.temp_dir, "raw")
-        self.grid_temp_loc = os.path.join(self.temp_dir, "temp_grid")
-        self.output_loc = os.path.join(self.temp_dir, "grid")
+        self.temp_dir = Path("tests/temp_test_data")
+        self.raw_data_loc = self.temp_dir / "raw"
+        self.grid_temp_loc = self.temp_dir / "temp_grid"
+        self.output_loc = self.temp_dir / "grid"
 
         # Clean up previous runs
-        if os.path.exists(self.temp_dir):
+        if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
 
         # Create directories
-        os.makedirs(self.raw_data_loc, exist_ok=True)
-        os.makedirs(self.grid_temp_loc, exist_ok=True)
-        os.makedirs(self.output_loc, exist_ok=True)
+        self.raw_data_loc.mkdir(parents=True, exist_ok=True)
+        self.grid_temp_loc.mkdir(parents=True, exist_ok=True)
+        self.output_loc.mkdir(parents=True, exist_ok=True)
 
         # Define default configurations for tests
         self.spn_config = {
@@ -55,9 +55,9 @@ class TestObtainGridDS:
         }
 
         self.grid_config = {
-            "raw_data_location": os.path.join(self.raw_data_loc, "data_jsonl", self.spn_config["output_file"]),
-            "temporary_grid_location": self.grid_temp_loc,
-            "output_grid_location": self.output_loc,
+            "raw_data_location": str(self.raw_data_loc / "data_jsonl" / self.spn_config["output_file"]),
+            "temporary_grid_location": str(self.grid_temp_loc),
+            "output_grid_location": str(self.output_loc),
             "accumulation_data": False,
             "places_grid_boundaries": [7, 9],
             "markings_grid_boundaries": [8, 12, 16],
@@ -69,15 +69,15 @@ class TestObtainGridDS:
 
     def teardown_method(self):
         """Tear down the temporary directory."""
-        if os.path.exists(self.temp_dir):
+        if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
 
     def test_scaffolding_creation(self):
         """Tests that the setup and teardown methods work."""
-        assert os.path.exists(self.temp_dir)
-        assert os.path.exists(self.raw_data_loc)
-        assert os.path.exists(self.grid_temp_loc)
-        assert os.path.exists(self.output_loc)
+        assert self.temp_dir.exists()
+        assert self.raw_data_loc.exists()
+        assert self.grid_temp_loc.exists()
+        assert self.output_loc.exists()
 
     def test_full_pipeline_execution(self):
         """
@@ -88,15 +88,15 @@ class TestObtainGridDS:
         SPNGenerate.run_generation_from_config(self.spn_config)
 
         # Verify that the raw data file was created
-        raw_data_output_path = self.grid_config["raw_data_location"]
-        assert os.path.exists(raw_data_output_path), "Raw data file was not generated."
+        raw_data_output_path = Path(self.grid_config["raw_data_location"])
+        assert raw_data_output_path.exists(), "Raw data file was not generated."
 
         # --- Step 2: Run ObtainGridDS with the generated data ---
         # ObtainGridDS.py is designed to be run as a script, so we'll call its main functions.
         ObtainGridDS.partition_data_into_grid(
             self.grid_config["temporary_grid_location"],
             self.grid_config["accumulation_data"],
-            raw_data_output_path,
+            str(raw_data_output_path),
             self.grid_config,
         )
 
@@ -104,8 +104,8 @@ class TestObtainGridDS:
         ObtainGridDS.package_dataset(self.grid_config, processed_data)
 
         # --- Step 3: Verify the final output ---
-        final_output_path = os.path.join(self.output_loc, self.grid_config["output_file"])
-        assert os.path.exists(final_output_path), "Final grid dataset was not created."
+        final_output_path = self.output_loc / self.grid_config["output_file"]
+        assert final_output_path.exists(), "Final grid dataset was not created."
 
         # Check content of HDF5 file
         if self.grid_config["output_format"] == "hdf5":
@@ -137,7 +137,7 @@ class TestObtainGridDS:
         # Expect 3 place bins (p1, p2, p3) and 2 marking bins (m1, m2)
         for i in range(1, 4):
             for j in range(1, 3):
-                assert os.path.exists(os.path.join(self.grid_temp_loc, f"p{i}", f"m{j}"))
+                assert (Path(self.grid_temp_loc) / f"p{i}" / f"m{j}").exists()
 
     def test_partition_data_into_grid_logic(self):
         """Tests the partitioning logic specifically."""
@@ -148,7 +148,7 @@ class TestObtainGridDS:
             "sample3": {"petri_net": [0] * 12, "arr_vlist": [0] * 20},  # p=12, m=20-> p2, m2
             "sample4": {"petri_net": [0] * 25, "arr_vlist": [0] * 30},  # p=25, m=30-> p3, m2
         }
-        raw_data_path = os.path.join(self.temp_dir, "dummy_raw.jsonl")
+        raw_data_path = self.temp_dir / "dummy_raw.jsonl"
 
         # Create a mock JSONL file
         with open(raw_data_path, "w") as f:
@@ -157,8 +157,8 @@ class TestObtainGridDS:
                 f.write(json.dumps(sample) + "\n")
 
         grid_config = {
-            "raw_data_location": raw_data_path,
-            "temporary_grid_location": self.grid_temp_loc,
+            "raw_data_location": str(raw_data_path),
+            "temporary_grid_location": str(self.grid_temp_loc),
             "accumulation_data": False,
             "places_grid_boundaries": [10, 20],
             "markings_grid_boundaries": [15],
@@ -172,11 +172,11 @@ class TestObtainGridDS:
         )
 
         # Check that files were created in the correct cells
-        assert len(os.listdir(os.path.join(self.grid_temp_loc, "p1", "m1"))) == 2
-        assert len(os.listdir(os.path.join(self.grid_temp_loc, "p2", "m2"))) == 1
-        assert len(os.listdir(os.path.join(self.grid_temp_loc, "p3", "m2"))) == 1
+        assert len(list((self.grid_temp_loc / "p1" / "m1").iterdir())) == 2
+        assert len(list((self.grid_temp_loc / "p2" / "m2").iterdir())) == 1
+        assert len(list((self.grid_temp_loc / "p3" / "m2").iterdir())) == 1
         # Check an empty cell
-        assert len(os.listdir(os.path.join(self.grid_temp_loc, "p1", "m2"))) == 0
+        assert len(list((self.grid_temp_loc / "p1" / "m2").iterdir())) == 0
 
     def test_package_dataset_formats(self):
         """Tests that both HDF5 and JSONL packaging formats work."""
@@ -187,8 +187,8 @@ class TestObtainGridDS:
         hdf5_config["output_format"] = "hdf5"
         hdf5_config["output_file"] = "test.hdf5"
         ObtainGridDS.package_dataset(hdf5_config, dummy_data)
-        hdf5_path = os.path.join(self.output_loc, "test.hdf5")
-        assert os.path.exists(hdf5_path)
+        hdf5_path = self.output_loc / "test.hdf5"
+        assert hdf5_path.exists()
         with h5py.File(hdf5_path, "r") as f:
             assert f.attrs["total_samples_written"] == 5
 
@@ -197,8 +197,8 @@ class TestObtainGridDS:
         jsonl_config["output_format"] = "jsonl"
         jsonl_config["output_file"] = "test.jsonl"
         ObtainGridDS.package_dataset(jsonl_config, dummy_data)
-        jsonl_path = os.path.join(self.output_loc, "test.jsonl")
-        assert os.path.exists(jsonl_path)
+        jsonl_path = self.output_loc / "test.jsonl"
+        assert jsonl_path.exists()
         with open(jsonl_path, "r") as f:
             lines = f.readlines()
             # 1 header line + 5 data lines

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from graphviz import Digraph
 import numpy as np
 from joblib import Parallel, delayed
@@ -143,10 +143,11 @@ def save_visualizations_for_instance(graph_data, output_dir, file_counter):
         output_dir (str): Directory to save the images.
         file_counter (int): Counter for unique filenames.
     """
-    petri_filepath = os.path.join(output_dir, f"petri_net_{file_counter}")
-    spn_filepath = os.path.join(output_dir, f"spn_{file_counter}")
+    output_dir = Path(output_dir)
+    petri_filepath = output_dir / f"petri_net_{file_counter}"
+    spn_filepath = output_dir / f"spn_{file_counter}"
 
-    plot_petri_net(graph_data["petri_net"], petri_filepath)
+    plot_petri_net(graph_data["petri_net"], str(petri_filepath))
     plot_stochastic_petri_net(
         graph_data["arr_vlist"],
         graph_data["arr_edge"],

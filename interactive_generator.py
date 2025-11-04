@@ -5,7 +5,7 @@ through creating one or more scenarios, generating the necessary configuration
 files for each, and then executing the generation scripts sequentially.
 """
 
-import os
+from pathlib import Path
 import subprocess
 import toml
 import shutil
@@ -123,7 +123,7 @@ def get_spn_generate_config(defaults, common_data_folder, generation_mode):
     """Interactively gets the configuration for SPNGenerate.py."""
     print("\n--- Configuring SPN Data Generation ---")
     config = {}
-    config["output_data_location"] = os.path.join(common_data_folder, "raw")
+    config["output_data_location"] = str(Path(common_data_folder) / "raw")
     print(f"  Output data location is set to: {config['output_data_location']}")
 
     # In grid mode, the output must be a jsonl file for the next step.
@@ -235,12 +235,12 @@ def main():
     common_data_folder = get_common_data_folder()
     temp_grid_folder = ""
 
-    if os.path.exists("temp_configs"):
+    if Path("temp_configs").exists():
         shutil.rmtree("temp_configs")
-    os.makedirs("temp_configs")
+    Path("temp_configs").mkdir()
 
-    if not os.path.exists("completed_configs"):
-        os.makedirs("completed_configs")
+    if not Path("completed_configs").exists():
+        Path("completed_configs").mkdir()
 
     spn_defaults, grid_defaults = load_default_configs()
 
@@ -280,19 +280,19 @@ def main():
 
     # --- Execution Phase ---
     print("\n--- Starting Execution Phase ---")
-    scenarios_to_run = sorted(os.listdir("temp_configs"))
+    scenarios_to_run = sorted([d.name for d in Path("temp_configs").iterdir()])
     for scenario_name in tqdm(scenarios_to_run, desc="Running Scenarios"):
-        scenario_dir = os.path.join("temp_configs", scenario_name)
-        if not os.path.isdir(scenario_dir):
+        scenario_dir = Path("temp_configs") / scenario_name
+        if not scenario_dir.is_dir():
             continue
 
         print(f"\n--- Running Scenario: {scenario_name} ---")
-        run_scenario(scenario_dir, scenario_name, generation_modes[scenario_name])
+        run_scenario(str(scenario_dir), scenario_name, generation_modes[scenario_name])
 
     print("\nAll scenarios have been processed.")
     # Clean up temp directories
     shutil.rmtree("temp_configs")
-    if temp_grid_folder and os.path.exists(temp_grid_folder):
+    if temp_grid_folder and Path(temp_grid_folder).exists():
         print(f"Cleaning up temporary grid folder: {temp_grid_folder}")
         shutil.rmtree(temp_grid_folder)
 
@@ -305,17 +305,17 @@ def configure_random_scenarios(spn_defaults, common_data_folder, generation_mode
     print(f"\n--- Creating {len(dataset_sizes)} scenarios based on dataset sizes ---")
     for i, size in enumerate(dataset_sizes):
         scenario_name = f"scenario_{scenario_count_offset + i}"
-        scenario_dir = os.path.join("temp_configs", scenario_name)
-        os.makedirs(scenario_dir, exist_ok=True)
+        scenario_dir = Path("temp_configs") / scenario_name
+        scenario_dir.mkdir(exist_ok=True)
 
         spn_config = base_spn_config.copy()
         spn_config["number_of_samples_to_generate"] = size
         # Create a more descriptive output filename for each scenario
-        original_filename = spn_config.get("output_file", "spn_dataset.jsonl")
-        name, ext = os.path.splitext(original_filename)
+        original_filename = Path(spn_config.get("output_file", "spn_dataset.jsonl"))
+        name, ext = original_filename.stem, original_filename.suffix
         spn_config["output_file"] = f"{name}_{size}_samples{ext}"
 
-        with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
+        with open(scenario_dir / "SPNGenerate.toml", "w") as f:
             toml.dump(spn_config, f)
 
         print(f"Configuration for scenario {scenario_name} (size: {size}) saved in {scenario_dir}")
@@ -324,12 +324,12 @@ def configure_random_scenarios(spn_defaults, common_data_folder, generation_mode
 
 def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, generation_mode, scenario_name):
     """Interactively configures a scenario for grid-based generation with a simplified workflow."""
-    scenario_dir = os.path.join("temp_configs", scenario_name)
-    os.makedirs(scenario_dir, exist_ok=True)
+    scenario_dir = Path("temp_configs") / scenario_name
+    scenario_dir.mkdir(exist_ok=True)
 
     # --- Part 1: Get SPN Generation Config ---
     spn_config = get_spn_generate_config(spn_defaults, common_data_folder, generation_mode)
-    with open(os.path.join(scenario_dir, "SPNGenerate.toml"), "w") as f:
+    with open(scenario_dir / "SPNGenerate.toml", "w") as f:
         toml.dump(spn_config, f)
 
     # --- Part 2: Get Simplified Grid Config & Derive Parameters ---
@@ -371,8 +371,8 @@ def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, gen
             "Name of the final grid dataset file.",
         )
         # Extract format from extension
-        name, ext = os.path.splitext(output_file)
-        output_format = ext.lstrip(".")
+        output_file_path = Path(output_file)
+        output_format = output_file_path.suffix.lstrip(".")
 
         if output_format in ["hdf5", "jsonl"]:
             grid_config["output_file"] = output_file
@@ -380,13 +380,13 @@ def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, gen
             print(f"  Output format automatically set to '{output_format}'.")
             break
         else:
-            print(f"Unsupported file extension: '{ext}'. Please use '.hdf5' or '.jsonl'.")
+            print(f"Unsupported file extension: '{output_file_path.suffix}'. Please use '.hdf5' or '.jsonl'.")
 
     # Derive paths and boundaries
-    spn_output_dir = os.path.join(spn_config["output_data_location"], f"data_{spn_config['output_format']}")
-    grid_config["raw_data_location"] = os.path.join(spn_output_dir, spn_config["output_file"])
-    grid_config["temporary_grid_location"] = os.path.join(common_data_folder, "temp_grid")
-    grid_config["output_grid_location"] = os.path.join(common_data_folder, "grid")
+    spn_output_dir = Path(spn_config["output_data_location"]) / f"data_{spn_config['output_format']}"
+    grid_config["raw_data_location"] = str(spn_output_dir / spn_config["output_file"])
+    grid_config["temporary_grid_location"] = str(Path(common_data_folder) / "temp_grid")
+    grid_config["output_grid_location"] = str(Path(common_data_folder) / "grid")
 
     grid_config["places_grid_boundaries"] = _generate_grid_boundaries(
         spn_config["minimum_number_of_places"],
@@ -403,7 +403,7 @@ def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, gen
     print(f"  Derived marking boundaries: {grid_config['markings_grid_boundaries']}")
 
     # Save the derived grid config
-    with open(os.path.join(scenario_dir, "PartitionGrid.toml"), "w") as f:
+    with open(Path(scenario_dir) / "PartitionGrid.toml", "w") as f:
         toml.dump(grid_config, f)
 
     print(f"\nConfiguration for {scenario_name} saved in {scenario_dir}")
@@ -412,7 +412,7 @@ def configure_grid_scenario(spn_defaults, grid_defaults, common_data_folder, gen
 
 def run_scenario(scenario_dir, scenario_name, generation_mode):
     """Runs a single scenario, showing live output from the process."""
-    spn_config_path = os.path.join(scenario_dir, "SPNGenerate.toml")
+    spn_config_path = Path(scenario_dir) / "SPNGenerate.toml"
 
     # Run SPNGenerate.py
     print(f"Running SPNGenerate.py for {scenario_name}...")
@@ -427,14 +427,14 @@ def run_scenario(scenario_dir, scenario_name, generation_mode):
     # Move SPN config file to completed_configs
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     new_spn_config_name = f"{scenario_name}-{timestamp}-SPNGenerate.toml"
-    shutil.move(spn_config_path, os.path.join("completed_configs", new_spn_config_name))
+    shutil.move(str(spn_config_path), str(Path("completed_configs") / new_spn_config_name))
 
     if generation_mode == "grid":
-        grid_config_path = os.path.join(scenario_dir, "PartitionGrid.toml")
+        grid_config_path = Path(scenario_dir) / "PartitionGrid.toml"
         # Run ObtainGridDS.py
         print(f"Running ObtainGridDS.py for {scenario_name}...")
         grid_process = subprocess.run(
-            ["python", "ObtainGridDS.py", "--config", grid_config_path], capture_output=True, text=True
+            ["python", "ObtainGridDS.py", "--config", str(grid_config_path)], capture_output=True, text=True
         )
         if grid_process.returncode != 0:
             print(f"Error running ObtainGridDS.py for {scenario_name}.")
@@ -444,7 +444,7 @@ def run_scenario(scenario_dir, scenario_name, generation_mode):
 
         # Move grid config file to completed_configs
         new_grid_config_name = f"{scenario_name}-{timestamp}-PartitionGrid.toml"
-        shutil.move(grid_config_path, os.path.join("completed_configs", new_grid_config_name))
+        shutil.move(str(grid_config_path), str(Path("completed_configs") / new_grid_config_name))
 
     print(f"Configuration files for {scenario_name} moved to completed_configs.")
     print(f"--- Scenario {scenario_name} completed successfully! ---")

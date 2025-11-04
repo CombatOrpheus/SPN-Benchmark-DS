@@ -1,7 +1,7 @@
 import argparse
 import csv
 import json
-import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -9,7 +9,7 @@ import time
 
 def main():
     # Ensure we are in the repo root
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    repo_root = Path(__file__).parent.parent.resolve()
     os.chdir(repo_root)
 
     parser = argparse.ArgumentParser(description="Benchmark different commits.")
@@ -100,12 +100,12 @@ def benchmark_commit(commit, original_branch):
 
 def benchmark_data_generation():
     """Runs the data generation script and returns the execution time."""
-    config_file = "benchmarks/benchmark.toml"
-    if not os.path.exists(config_file):
+    config_file = Path("benchmarks/benchmark.toml")
+    if not config_file.exists():
         print(f"Error: Data generation config file not found at {config_file}")
         return -1
 
-    command = ["uv", "run", "python", "SPNGenerate.py", "--config", config_file]
+    command = ["uv", "run", "python", "SPNGenerate.py", "--config", str(config_file)]
 
     start_time = time.time()
     run_command(command, "Data generation script failed.")
