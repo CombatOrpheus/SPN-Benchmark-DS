@@ -4,7 +4,7 @@ This script generates Stochastic Petri Net (SPN) datasets and saves them to HDF5
 
 import argparse
 import json
-import os
+from pathlib import Path
 import subprocess
 import h5py
 import numpy as np
@@ -134,7 +134,8 @@ def setup_arg_parser():
 
 def load_config(args):
     """Loads configuration from TOML and overrides with command-line arguments."""
-    config = DU.load_toml_file(args.config) if os.path.exists(args.config) else {}
+    config_path = Path(args.config)
+    config = DU.load_toml_file(config_path) if config_path.exists() else {}
     for key, value in vars(args).items():
         if value is not None:
             config[key] = value
@@ -144,9 +145,9 @@ def load_config(args):
 def run_generation_from_config(config):
     """Runs the SPN generation process from a configuration dictionary."""
     output_format = config.get("output_format", "hdf5")
-    output_dir = os.path.join(config["output_data_location"], f"data_{output_format}")
+    output_dir = Path(config["output_data_location"]) / f"data_{output_format}"
     DU.create_directory(output_dir)
-    output_path = os.path.join(output_dir, config["output_file"])
+    output_path = output_dir / config["output_file"]
 
     print(f"Generating {config['number_of_samples_to_generate']} initial SPN samples...")
     initial_samples = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
@@ -189,16 +190,16 @@ def run_generation_from_config(config):
 
     if config.get("enable_statistics_report"):
         print("Generating statistical report...")
-        report_output_path = os.path.splitext(output_path)[0] + "_report.html"
+        report_output_path = output_path.with_suffix(".html")
         try:
             result = subprocess.run(
                 [
                     "python",
                     "generate_statistics.py",
                     "--input",
-                    output_path,
+                    str(output_path),
                     "--output",
-                    report_output_path,
+                    str(report_output_path),
                 ],
                 check=True,
                 capture_output=True,

@@ -4,7 +4,7 @@ It creates visual representations of the Petri nets and their corresponding
 Stochastic Petri Nets (SPNs) for both the training and testing sets.
 """
 
-import os
+from pathlib import Path
 from DataVisualization import Visual
 from utils import DataUtil as DU
 
@@ -18,20 +18,20 @@ def visualize_dataset(dataset_type, dataset_name, num_parallel_jobs=-1):
         num_parallel_jobs (int, optional): The number of parallel jobs to use
             for visualization. Defaults to -1 (using all available cores).
     """
-    data_dir = f"Data/{dataset_type}/{dataset_name}/ori_data/"
-    pictures_dir = f"Pics/{dataset_type}/{dataset_name}/"
+    data_dir = Path(f"Data/{dataset_type}/{dataset_name}/ori_data/")
+    pictures_dir = Path(f"Pics/{dataset_type}/{dataset_name}/")
 
-    train_pics_dir = os.path.join(pictures_dir, "train_pics")
-    test_pics_dir = os.path.join(pictures_dir, "test_pics")
+    train_pics_dir = pictures_dir / "train_pics"
+    test_pics_dir = pictures_dir / "test_pics"
 
     DU.create_directory(pictures_dir)
     DU.create_directory(train_pics_dir)
     DU.create_directory(test_pics_dir)
 
-    train_data_path = os.path.join(data_dir, "train_data.json")
-    test_data_path = os.path.join(data_dir, "test_data.json")
+    train_data_path = data_dir / "train_data.json"
+    test_data_path = data_dir / "test_data.json"
 
-    if not os.path.exists(train_data_path) or not os.path.exists(test_data_path):
+    if not train_data_path.exists() or not test_data_path.exists():
         print(f"Data not found for {dataset_type}/{dataset_name}. Skipping visualization.")
         return
 

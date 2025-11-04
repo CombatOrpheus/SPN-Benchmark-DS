@@ -5,6 +5,7 @@ handling numpy data types.
 """
 
 import json
+from pathlib import Path
 import numpy as np
 import h5py
 
@@ -41,6 +42,8 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.item()
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        if isinstance(obj, Path):
+            return str(obj)
         return super(NumpyEncoder, self).default(obj)
 
 

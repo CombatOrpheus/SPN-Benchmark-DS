@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import subprocess
 import tempfile
 import sys
@@ -34,22 +34,23 @@ def test_statistics_script_runs_successfully():
     and produces an HTML report.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        input_file = os.path.join(tmpdir, "test_dataset.hdf5")
-        output_file = os.path.join(tmpdir, "report.html")
+        tmpdir = Path(tmpdir)
+        input_file = tmpdir / "test_dataset.hdf5"
+        output_file = tmpdir / "report.html"
 
         create_dummy_hdf5_dataset(input_file)
-        assert os.path.exists(input_file)
+        assert input_file.exists()
 
-        script_path = os.path.join(os.path.dirname(__file__), "..", "generate_statistics.py")
+        script_path = Path(__file__).parent.parent / "generate_statistics.py"
 
         result = subprocess.run(
-            [sys.executable, script_path, "--input", input_file, "--output", output_file],
+            [sys.executable, str(script_path), "--input", str(input_file), "--output", str(output_file)],
             capture_output=True,
             text=True,
         )
 
         assert result.returncode == 0, f"Script failed with error:\n{result.stderr}"
-        assert os.path.exists(output_file), "The HTML report file was not created."
+        assert output_file.exists(), "The HTML report file was not created."
 
         with open(output_file, "r") as f:
             content = f.read()

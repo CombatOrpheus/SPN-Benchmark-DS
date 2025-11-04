@@ -2,7 +2,7 @@
 This script calculates and saves statistics about the distribution of data in a dataset.
 """
 
-import os
+from pathlib import Path
 import numpy as np
 from utils import DataUtil as DU
 from utils.ExcelTools import ExcelTool
@@ -73,11 +73,11 @@ def main():
     dataset_name = "DS3"  # Example: "DS1" through "DS5"
     data_type = "GridData"  # "GridData" or "RandData"
 
-    data_dir = f"Data/{data_type}/{dataset_name}/ori_data"
-    save_dir = f"result/{data_type}/excel"
+    data_dir = Path(f"Data/{data_type}/{dataset_name}/ori_data")
+    save_dir = Path(f"result/{data_type}/excel")
 
-    train_data = DU.load_json_file(os.path.join(data_dir, "train_data.json"))
-    test_data = DU.load_json_file(os.path.join(data_dir, "test_data.json"))
+    train_data = DU.load_json_file(data_dir / "train_data.json")
+    test_data = DU.load_json_file(data_dir / "test_data.json")
 
     row_boundaries, col_boundaries = get_grid_boundaries(data_type)
 
