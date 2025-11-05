@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict, Any
 import numpy as np
 import numba
 from scipy.sparse import csc_array, lil_matrix
-from scipy.sparse.linalg import lsmr
+from scipy.sparse.linalg import spsolve
 from DataGenerate import ArrivableGraph as ArrGra
 
 
@@ -49,7 +49,10 @@ def compute_state_equation(
 
     # Use Numba-optimized function for the core computation
     state_matrix_np = _compute_state_equation_numba(
-        num_vertices, np.array(edges), np.array(arc_transitions), lambda_values
+        num_vertices,
+        np.array(edges, dtype=np.int32),
+        np.array(arc_transitions, dtype=np.int32),
+        lambda_values,
     )
 
     # Convert the NumPy array to a sparse matrix
@@ -88,28 +91,27 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
 
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
-    """Solves for steady-state probabilities using LSMR."""
+    """Solves for steady-state probabilities using spsolve on a modified system."""
     num_vertices = state_matrix.shape[1]
+
+    # To use spsolve, we need a square matrix. We can achieve this by removing
+    # one of the redundant equations from the state matrix (the first `num_vertices` rows).
+    # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
+    A_sq = state_matrix[1:, :]
+    b_sq = target_vector[1:]
+
     try:
-        lsmr_result = lsmr(
-            state_matrix,
-            target_vector,
-            atol=1e-6,
-            btol=1e-6,
-            conlim=1e7,
-            maxiter=100 * num_vertices,
-        )
-        # Check for convergence (istop=1 or istop=2)
-        if lsmr_result[1] in [1, 2]:
-            probs = lsmr_result[0]
-            # Normalize probabilities to sum to 1
-            probs[probs < 0] = 0
-            prob_sum = np.sum(probs)
-            if prob_sum > 1e-9:
-                return probs / prob_sum
+        probs = spsolve(A_sq, b_sq)
+
+        # Normalize probabilities
+        probs[probs < 0] = 0
+        prob_sum = np.sum(probs)
+        if prob_sum > 1e-9:
+            return probs / prob_sum
+
     except (np.linalg.LinAlgError, ValueError):
-        # Handle potential numerical issues
-        pass
+        pass  # Handle numerical issues
+
     return None
 
 
