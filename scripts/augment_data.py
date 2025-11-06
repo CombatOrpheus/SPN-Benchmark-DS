@@ -13,9 +13,9 @@ import toml
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-from DataGenerate import DataTransformation as DT
-from utils import DataUtil as DU
-from utils import FileWriter as FW
+from spn_datasets.generator import DataTransformation as DT
+from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils import FileWriter as FW
 
 
 def setup_arg_parser():

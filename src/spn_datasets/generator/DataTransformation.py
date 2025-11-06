@@ -5,7 +5,7 @@ variations of a given Petri net structure and its firing rates.
 
 import numpy as np
 from joblib import Parallel, delayed
-from DataGenerate import SPN
+from spn_datasets.generator import SPN
 import numba
 from numba.core import types
 from numba.typed import List

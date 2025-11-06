@@ -11,11 +11,11 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm, trange
 
-from DataGenerate import DataTransformation as DT
-from DataGenerate import PetriGenerate as PeGen
-from DataGenerate import SPN
-from utils import DataUtil as DU
-from utils import FileWriter as FW
+from spn_datasets.generator import DataTransformation as DT
+from spn_datasets.generator import PetriGenerate as PeGen
+from spn_datasets.generator import SPN
+from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils import FileWriter as FW
 
 
 def generate_single_spn(config):

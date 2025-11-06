@@ -41,7 +41,7 @@ def test_statistics_script_runs_successfully():
         create_dummy_hdf5_dataset(input_file)
         assert input_file.exists()
 
-        script_path = Path(__file__).parent.parent / "generate_statistics.py"
+        script_path = Path(__file__).parent.parent / "scripts" / "generate_statistics.py"
 
         result = subprocess.run(
             [sys.executable, str(script_path), "--input", str(input_file), "--output", str(output_file)],

@@ -9,9 +9,9 @@ import time
 import numpy as np
 import h5py
 from tqdm import tqdm
-from utils import DataUtil as DU
-from utils import FileWriter as FW
-from DataGenerate import DataTransformation as dts
+from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils import FileWriter as FW
+from spn_datasets.generator import DataTransformation as dts
 
 
 def get_grid_index(value, grid_boundaries):

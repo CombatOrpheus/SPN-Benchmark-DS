@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from DataGenerate.ArrivableGraph import (
+from spn_datasets.generator.ArrivableGraph import (
     get_enabled_transitions,
     generate_reachability_graph,
 )
