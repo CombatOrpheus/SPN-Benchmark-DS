@@ -6,6 +6,18 @@ using Breadth-First Search (BFS) and optimized marking lookup.
 from collections import deque
 import numpy as np
 import numba
+from numba.core import types
+from numba.typed import Dict, List
+
+
+@numba.jit(nopython=True, cache=True)
+def fnv1a_hash(data):
+    """FNV-1a hash function for a numpy array."""
+    h = np.uint64(14695981039346656037)
+    for i in range(data.shape[0]):
+        h ^= np.uint64(data[i])
+        h *= np.uint64(1099511628211)
+    return h
 
 
 @numba.jit(nopython=True, cache=True)
@@ -36,74 +48,103 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
         return np.empty((0, num_places), dtype=np.int64), np.empty((0,), dtype=np.int64)
 
     new_markings = current_marking_vector[:, np.newaxis] + change_matrix[:, enabled_transitions]
-    return new_markings.T, enabled_transitions
+    return new_markings.T.copy(), enabled_transitions
 
 
 def _initialize_bfs(initial_marking):
     """Initializes the data structures for the BFS algorithm."""
     marking_index_counter = 0
-    visited_markings_list = [initial_marking]
-    explored_markings_dict = {tuple(initial_marking): marking_index_counter}
+
+    # Use Numba-typed List and Dict for memory efficiency
+    visited_markings_list = List()
+    visited_markings_list.append(initial_marking)
+
+    explored_markings_dict = Dict.empty(key_type=types.int64, value_type=types.int64)
+    random_vector = np.random.randint(1, 1000, size=initial_marking.shape[0], dtype=np.int64)
+    explored_markings_dict[np.dot(initial_marking, random_vector)] = marking_index_counter
+
     processing_queue = deque([marking_index_counter])
+
     return marking_index_counter, visited_markings_list, explored_markings_dict, processing_queue
 
 
-def _process_marking(
-    current_marking_index,
-    visited_markings_list,
+@numba.jit(nopython=True, cache=True)
+def _bfs_core(
+    initial_marking,
     pre_matrix,
     change_matrix,
     place_upper_limit,
     max_markings_to_explore,
 ):
-    """Processes a single marking in the BFS algorithm."""
-    current_marking = visited_markings_list[current_marking_index]
+    """Core BFS loop optimized with Numba."""
+    marking_index_counter = 0
 
-    if len(visited_markings_list) >= max_markings_to_explore:
-        return None, None, True
+    # Visited markings are stored in a Numba List for efficient access
+    visited_markings_list = List()
+    visited_markings_list.append(initial_marking)
 
-    enabled_next_markings, enabled_transition_indices = get_enabled_transitions(
-        pre_matrix, change_matrix, current_marking
+    # Explored markings are stored in a Numba Dict for fast lookups using a hash as a key
+    explored_markings_dict = Dict.empty(
+        key_type=types.uint64,
+        value_type=types.int64
     )
+    explored_markings_dict[fnv1a_hash(initial_marking)] = marking_index_counter
 
-    if enabled_next_markings.size > 0 and np.any(enabled_next_markings > place_upper_limit):
-        return None, None, True
+    # The processing queue for the BFS algorithm, using a circular queue
+    queue = np.empty(max_markings_to_explore, dtype=np.int64)
+    queue[0] = marking_index_counter
+    head = 0
+    tail = 1
 
-    return enabled_next_markings, enabled_transition_indices, False
+    # Data structures to store the graph
+    reachability_edges = List()
+    edge_transition_indices = List()
+    is_bounded = True
 
+    while head < tail:
+        current_marking_index = queue[head]
+        head += 1
+        current_marking = visited_markings_list[current_marking_index]
 
-def _update_graph(
-    new_marking,
-    enabled_transition_index,
-    current_marking_index,
-    marking_index_counter,
-    visited_markings_list,
-    explored_markings_dict,
-    processing_queue,
-    reachability_edges,
-    edge_transition_indices,
-    max_markings_to_explore,
-):
-    """Updates the reachability graph with a new marking and edge."""
-    new_marking_tuple = tuple(new_marking)
+        if len(visited_markings_list) >= max_markings_to_explore:
+            is_bounded = False
+            break
 
-    if new_marking_tuple not in explored_markings_dict:
-        marking_index_counter += 1
-        if marking_index_counter >= max_markings_to_explore:
-            reachability_edges.append([current_marking_index, marking_index_counter])
+        enabled_next_markings, enabled_transition_indices = get_enabled_transitions(
+            pre_matrix, change_matrix, current_marking
+        )
+
+        if enabled_next_markings.size > 0 and np.any(enabled_next_markings > place_upper_limit):
+            is_bounded = False
+            break
+
+        for i in range(enabled_next_markings.shape[0]):
+            new_marking = enabled_next_markings[i]
+            enabled_transition_index = enabled_transition_indices[i]
+            new_marking_hash = fnv1a_hash(new_marking)
+
+            if new_marking_hash not in explored_markings_dict:
+                marking_index_counter += 1
+                if marking_index_counter >= max_markings_to_explore:
+                    reachability_edges.append((current_marking_index, marking_index_counter))
+                    edge_transition_indices.append(enabled_transition_index)
+                    is_bounded = False
+                    break
+
+                visited_markings_list.append(new_marking)
+                explored_markings_dict[new_marking_hash] = marking_index_counter
+                queue[tail] = marking_index_counter
+                tail += 1
+                reachability_edges.append((current_marking_index, marking_index_counter))
+            else:
+                existing_index = explored_markings_dict[new_marking_hash]
+                reachability_edges.append((current_marking_index, existing_index))
+
             edge_transition_indices.append(enabled_transition_index)
-            return marking_index_counter, True
+        if not is_bounded:
+            break
 
-        visited_markings_list.append(new_marking)
-        explored_markings_dict[new_marking_tuple] = marking_index_counter
-        processing_queue.append(marking_index_counter)
-        reachability_edges.append([current_marking_index, marking_index_counter])
-    else:
-        existing_index = explored_markings_dict[new_marking_tuple]
-        reachability_edges.append([current_marking_index, existing_index])
-
-    edge_transition_indices.append(enabled_transition_index)
-    return marking_index_counter, False
+    return visited_markings_list, reachability_edges, edge_transition_indices, is_bounded
 
 
 def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
@@ -130,62 +171,26 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     num_transitions = incidence_matrix.shape[1] // 2
     pre_matrix = incidence_matrix[:, :num_transitions]
     post_matrix = incidence_matrix[:, num_transitions:-1]
-    initial_marking = np.array(incidence_matrix[:, -1], dtype=int)
+    initial_marking = np.array(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
-    (
-        marking_index_counter,
-        visited_markings_list,
-        explored_markings_dict,
-        processing_queue,
-    ) = _initialize_bfs(initial_marking)
+    visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core(
+        initial_marking,
+        pre_matrix,
+        change_matrix,
+        place_upper_limit,
+        max_markings_to_explore,
+    )
 
-    reachability_edges = []
-    edge_transition_indices = []
-    is_bounded = True
-
-    while processing_queue:
-        current_marking_index = processing_queue.popleft()
-
-        enabled_next_markings, enabled_transition_indices, stop_exploration = _process_marking(
-            current_marking_index,
-            visited_markings_list,
-            pre_matrix,
-            change_matrix,
-            place_upper_limit,
-            max_markings_to_explore,
-        )
-
-        if stop_exploration:
-            is_bounded = False
-            break
-
-        if enabled_next_markings is None:
-            continue
-
-        for new_marking, enabled_transition_index in zip(enabled_next_markings, enabled_transition_indices):
-            marking_index_counter, stop = _update_graph(
-                new_marking,
-                enabled_transition_index,
-                current_marking_index,
-                marking_index_counter,
-                visited_markings_list,
-                explored_markings_dict,
-                processing_queue,
-                reachability_edges,
-                edge_transition_indices,
-                max_markings_to_explore,
-            )
-            if stop:
-                is_bounded = False
-                break
-        if not is_bounded:
-            break
+    # Convert Numba Lists to Python lists for compatibility
+    py_visited_markings_list = [np.array(m) for m in visited_markings_list]
+    py_reachability_edges = [list(e) for e in reachability_edges]
+    py_edge_transition_indices = list(edge_transition_indices)
 
     return (
-        visited_markings_list,
-        reachability_edges,
-        edge_transition_indices,
+        py_visited_markings_list,
+        py_reachability_edges,
+        py_edge_transition_indices,
         num_transitions,
         is_bounded,
     )
