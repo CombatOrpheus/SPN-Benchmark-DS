@@ -4,8 +4,8 @@ This script calculates and saves statistics about the distribution of data in a 
 
 from pathlib import Path
 import numpy as np
-from utils import DataUtil as DU
-from utils.ExcelTools import ExcelTool
+from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils.ExcelTools import ExcelTool
 
 
 def get_grid_boundaries(data_type):

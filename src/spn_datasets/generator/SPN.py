@@ -9,7 +9,7 @@ import numpy as np
 import numba
 from scipy.sparse import csc_array, lil_matrix
 from scipy.sparse.linalg import spsolve
-from DataGenerate import ArrivableGraph as ArrGra
+from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
 @numba.jit(nopython=True, cache=True)

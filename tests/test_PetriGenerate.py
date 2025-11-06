@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from DataGenerate.PetriGenerate import (
+from spn_datasets.generator.PetriGenerate import (
     generate_random_petri_net,
     prune_petri_net,
     delete_excess_edges,

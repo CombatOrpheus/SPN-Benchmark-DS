@@ -9,11 +9,12 @@ import numpy as np
 # Make sure the script can find the root modules
 import sys
 
-sys.path.append(str(Path(__file__).parent.parent.absolute()))
+sys.path.append(str(Path(__file__).parent.parent.absolute() / "src"))
+sys.path.append(str(Path(__file__).parent.parent.absolute() / "scripts"))
 
 import SPNGenerate
 import ObtainGridDS
-from utils import DataUtil as DU
+from spn_datasets.utils import DataUtil as DU
 
 
 class TestObtainGridDS:

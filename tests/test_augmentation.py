@@ -60,7 +60,7 @@ def test_augmentation_script_runs_successfully():
         assert os.path.exists(input_file)
         assert os.path.exists(config_file)
 
-        script_path = os.path.join(os.path.dirname(__file__), "..", "augment_data.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "augment_data.py")
 
         result = subprocess.run(
             [

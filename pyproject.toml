@@ -37,12 +37,11 @@ dev = [
     "pytest-cov",
     "black",
     "pytest-benchmark",
+    "memory-profiler",
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["DataGenerate*"]
-exclude = ["tests*"]
+where = ["src"]
 
 [tool.black]
 line-length = 120

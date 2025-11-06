@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from scipy.sparse import csc_array
-from DataGenerate.SPN import (
+from spn_datasets.generator.SPN import (
     is_connected,
     compute_state_equation,
     solve_for_steady_state,

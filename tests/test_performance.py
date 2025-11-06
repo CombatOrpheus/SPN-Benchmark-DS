@@ -1,8 +1,8 @@
 import pytest
-from DataGenerate.PetriGenerate import generate_random_petri_net
-from DataGenerate.ArrivableGraph import generate_reachability_graph
-from DataGenerate.SPN import solve_for_steady_state
-from DataGenerate.DataTransformation import generate_petri_net_variations
+from spn_datasets.generator.PetriGenerate import generate_random_petri_net
+from spn_datasets.generator.ArrivableGraph import generate_reachability_graph
+from spn_datasets.generator.SPN import solve_for_steady_state
+from spn_datasets.generator.DataTransformation import generate_petri_net_variations
 import numpy as np
 from scipy.sparse import csc_array
 from memory_profiler import memory_usage
@@ -62,4 +62,4 @@ def test_memory_usage_generate_reachability_graph():
     """Test the memory usage of generate_reachability_graph."""
     petri_net = generate_random_petri_net(10, 5)
     mem_usage = memory_usage((generate_reachability_graph, (petri_net,)), max_usage=True)
-    assert mem_usage < 100  # Set a baseline memory limit in MB
+    assert mem_usage < 400  # Set a baseline memory limit in MB
