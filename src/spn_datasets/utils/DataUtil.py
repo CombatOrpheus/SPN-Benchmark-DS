@@ -7,14 +7,12 @@ import numpy as np
 
 def create_directory(path):
     """Creates a directory if it does not already exist.
-
     Args:
         path (str): The path of the directory to create.
     """
     path = Path(path)
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
-        print(f"Directory created: {path}")
 
 
 def load_data_from_txt(file_path):
@@ -44,18 +42,13 @@ def load_json_file(file_path):
 
 def load_jsonl_file(file_path):
     """Loads data from a JSONL file, skipping the header.
-
     Args:
         file_path (str): The path to the JSONL file.
-
     Yields:
         dict: The data loaded from each line of the JSONL file.
     """
-
     with open(file_path, "r") as f:
-        # Skip the header line
         next(f)
-        # Load each subsequent line as a JSON object
         for line in f:
             if line.strip():
                 yield json.loads(line)
@@ -76,47 +69,44 @@ def load_toml_file(file_path):
 
 def load_all_data_from_json_directory(directory_path):
     """Loads all JSON files from a directory and yields them one by one.
-
     Args:
         directory_path (str): The path to the directory containing the JSON files.
-
     Yields:
         dict: The data loaded from each JSON file.
     """
     directory_path = Path(directory_path)
-    json_files = sorted(directory_path.iterdir(), key=lambda x: int(x.name[4:-5]))
+    _, json_files = count_json_files(directory_path)
     for json_file in json_files:
-        yield load_json_file(json_file)
+        yield load_json_file(directory_path / json_file)
 
 
 def count_json_files(directory_path):
     """Counts the number of JSON files in a directory.
-
     Args:
         directory_path (str): The path to the directory.
-
     Returns:
         tuple: A tuple containing the number of JSON files and a list of their names.
     """
     directory_path = Path(directory_path)
-    json_files = sorted([p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".json"], key=lambda x: int(x[4:-5]))
+    json_files = sorted(
+        [p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".json"],
+        key=lambda x: int(x.replace("data", "").replace(".json", ""))
+    )
     return len(json_files), json_files
 
 
 def load_all_data_from_txt_directory(directory_path):
     """Loads all text files from a directory into a list.
-
     Args:
         directory_path (str): The path to the directory containing the text files.
-
     Returns:
         list: A list of numpy.ndarray, each containing the data from a text file.
     """
     directory_path = Path(directory_path)
-    txt_files = sorted(directory_path.iterdir(), key=lambda x: int(x.name[4:-4]))
+    txt_files = get_all_txt_files_in_directory(directory_path)
     all_data = []
     for txt_file in txt_files:
-        data = load_data_from_txt(txt_file)
+        data = load_data_from_txt(directory_path / txt_file)
         all_data.append(data)
     return all_data
 
@@ -133,18 +123,22 @@ def write_data_to_txt(file_path, data):
 
 def get_all_txt_files_in_subdirectories(directory_path):
     """Gets a list of all text files in the subdirectories of a given directory.
-
     Args:
         directory_path (str): The path to the main directory.
-
     Returns:
         list: A list of full paths to all text files.
     """
     directory_path = Path(directory_path)
-    subdirectories = sorted([d for d in directory_path.iterdir() if d.is_dir()], key=lambda x: int(x.name[4:]))
+    subdirectories = sorted(
+        [d for d in directory_path.iterdir() if d.is_dir()],
+        key=lambda x: int(x.name.replace("data", ""))
+    )
     all_txt_files = []
     for subdir in subdirectories:
-        txt_files = sorted([f for f in subdir.iterdir() if f.is_file() and f.suffix == ".txt"], key=lambda x: int(x.name[4:-4]))
+        txt_files = sorted(
+            [f for f in subdir.iterdir() if f.is_file() and f.suffix == ".txt"],
+            key=lambda x: int(x.stem.replace("data", ""))
+        )
         full_paths = [subdir / f.name for f in txt_files]
         all_txt_files.extend(full_paths)
     return all_txt_files
@@ -181,15 +175,16 @@ def save_data_to_json_file(file_path, data):
 
 def get_all_txt_files_in_directory(directory_path):
     """Gets a list of all text files in a directory.
-
     Args:
         directory_path (str): The path to the directory.
-
     Returns:
         list: A list of text file names.
     """
     directory_path = Path(directory_path)
-    return sorted([p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".txt"], key=lambda x: int(x[4:-4]))
+    return sorted(
+        [p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".txt"],
+        key=lambda x: int(x.replace("data", "").replace(".txt", ""))
+    )
 
 
 def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
@@ -225,11 +220,9 @@ def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
 
 def sample_json_files_from_directory(num_samples, directory_path):
     """Samples a specified number of JSON files from a directory.
-
     Args:
         num_samples (int): The number of JSON files to sample.
         directory_path (str): The path to the directory.
-
     Returns:
         list: A list of dictionaries, each loaded from a sampled JSON file.
     """
@@ -239,33 +232,22 @@ def sample_json_files_from_directory(num_samples, directory_path):
 
     _, json_files = count_json_files(directory_path)
 
-    # If the directory is empty or has fewer files than requested, take all files
     if not json_files:
         return []
 
-    if len(json_files) < num_samples:
-        sampled_files = json_files
-    else:
-        sampled_files = np.random.choice(json_files, num_samples, replace=False)
+    np.random.shuffle(json_files)
 
     sampled_data = []
-    for file_name in sampled_files:
+    for file_name in json_files:
+        if len(sampled_data) >= num_samples:
+            break
+
         file_path = directory_path / file_name
         data = load_json_file(file_path)
-        # Filter out noisy data
+
         if -100 <= data["spn_mu"] <= 100:
             sampled_data.append(data)
-        else:
-            # Replace noisy data with a new random sample
-            while True:
-                new_file_name = np.random.choice(json_files, 1, replace=False)[0]
-                if new_file_name not in sampled_files:
-                    new_file_path = directory_path / new_file_name
-                    new_data = load_json_file(new_file_path)
-                    if -100 <= new_data["spn_mu"] <= 100:
-                        sampled_data.append(new_data)
-                        sampled_files = np.append(sampled_files, new_file_name)
-                        break
+
     return sampled_data
 
 
