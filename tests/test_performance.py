@@ -5,6 +5,7 @@ from DataGenerate.SPN import solve_for_steady_state
 from DataGenerate.DataTransformation import generate_petri_net_variations
 import numpy as np
 from scipy.sparse import csc_array
+from memory_profiler import memory_usage
 
 
 def test_benchmark_generate_random_petri_net(benchmark):
@@ -55,3 +56,10 @@ def test_benchmark_generate_petri_net_variations(benchmark):
         generate_petri_net_variations(petri_matrix, config)
 
     benchmark(f)
+
+
+def test_memory_usage_generate_reachability_graph():
+    """Test the memory usage of generate_reachability_graph."""
+    petri_net = generate_random_petri_net(10, 5)
+    mem_usage = memory_usage((generate_reachability_graph, (petri_net,)), max_usage=True)
+    assert mem_usage < 100  # Set a baseline memory limit in MB
