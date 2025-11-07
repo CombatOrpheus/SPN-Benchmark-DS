@@ -29,6 +29,9 @@ dependencies = [
     # Excel file handling
     "openpyxl",
 
+    # GNN-related packages
+    "torch",
+    "torch_geometric",
 ]
 
 [project.optional-dependencies]
