@@ -32,6 +32,8 @@ dependencies = [
     # GNN-related packages
     "torch",
     "torch_geometric",
+    "pytorch-lightning",
+    "torchmetrics",
 ]
 
 [project.optional-dependencies]
