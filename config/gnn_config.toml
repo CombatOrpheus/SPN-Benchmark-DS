@@ -1,0 +1,10 @@
+[training]
+model_name = "GCN"
+learning_rate = 0.001
+batch_size = 32
+epochs = 100
+
+[dataset]
+hdf5_path = "data/spn_dataset.hdf5"
+graph_type = "reachability"
+train_val_test_split = [0.8, 0.1, 0.1]
