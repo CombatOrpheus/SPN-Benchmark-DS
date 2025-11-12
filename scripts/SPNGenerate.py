@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script generates Stochastic Petri Net (SPN) datasets and saves them to HDF5.
 """

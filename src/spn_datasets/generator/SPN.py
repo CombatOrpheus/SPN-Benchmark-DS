@@ -48,9 +48,14 @@ def compute_state_equation(
     num_vertices = len(vertices)
 
     # Use Numba-optimized function for the core computation
+    edges_arr = np.array(edges, dtype=np.int32)
+    if edges_arr.ndim == 1:
+        # Ensure that the array is 2D, even if empty
+        edges_arr = edges_arr.reshape(-1, 2)
+
     state_matrix_np = _compute_state_equation_numba(
         num_vertices,
-        np.array(edges, dtype=np.int32),
+        edges_arr,
         np.array(arc_transitions, dtype=np.int32),
         lambda_values,
     )
