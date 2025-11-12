@@ -20,6 +20,9 @@ dependencies:
   - xlrd
   - xlwt
   - xlutils
+  # Optimization
+  - optuna
+  - optuna-dashboard
   # Pip-specific, if any, can be added here
   # - pip:
   #   - some-pip-package
