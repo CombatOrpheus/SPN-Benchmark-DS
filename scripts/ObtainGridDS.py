@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script processes raw data to generate a grid-based dataset for GNN training.
 It partitions the data into a grid, samples from each grid cell, and then

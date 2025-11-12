@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script calculates and saves statistics about the distribution of data in a dataset.
 """

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script augments an existing SPN dataset based on a configuration file.
 It applies specified transformations to each sample in the input dataset

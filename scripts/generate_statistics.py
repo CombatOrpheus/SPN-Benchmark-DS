@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script generates a statistical report from an SPN dataset file.
 The report includes plots and tables summarizing the dataset's characteristics

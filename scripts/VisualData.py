@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script generates visualizations for a given dataset.
 It creates visual representations of the Petri nets and their corresponding

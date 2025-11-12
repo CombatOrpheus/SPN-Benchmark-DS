@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script provides an interactive command-line interface to set up and run
 a series of SPN (Stochastic Petri Net) generation tasks. It guides the user
