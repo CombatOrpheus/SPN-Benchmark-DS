@@ -1,13 +1,20 @@
+"""This module provides functions for visualizing Petri nets and reachability
+graphs."""
+
 from pathlib import Path
 from graphviz import Digraph
 import numpy as np
 from joblib import Parallel, delayed
+from typing import List, Dict, Any, Tuple
 
-np.set_printoptions(precision=4)
 
+def _create_place_nodes(graph: Digraph, petri_matrix: np.ndarray) -> None:
+    """Creates place nodes for the Petri net graph.
 
-def _create_place_nodes(graph, petri_matrix):
-    """Creates place nodes for the Petri net graph."""
+    Args:
+        graph: The graph object to add nodes to.
+        petri_matrix: The matrix describing the Petri net.
+    """
     num_places = petri_matrix.shape[0]
     for i in range(num_places):
         token_count = petri_matrix[i, -1]
@@ -15,14 +22,27 @@ def _create_place_nodes(graph, petri_matrix):
         graph.node(f"P{i+1}", label)
 
 
-def _create_transition_nodes(graph, num_transitions):
-    """Creates transition nodes for the Petri net graph."""
+def _create_transition_nodes(graph: Digraph, num_transitions: int) -> None:
+    """Creates transition nodes for the Petri net graph.
+
+    Args:
+        graph: The graph object to add nodes to.
+        num_transitions: The number of transitions in the Petri net.
+    """
     for i in range(num_transitions):
         graph.node(f"t{i+1}", f"t{i+1}", shape="box")
 
 
-def _create_edges(graph, petri_matrix, num_transitions):
-    """Creates edges between places and transitions."""
+def _create_edges(
+    graph: Digraph, petri_matrix: np.ndarray, num_transitions: int
+) -> None:
+    """Creates edges between places and transitions.
+
+    Args:
+        graph: The graph object to add edges to.
+        petri_matrix: The matrix describing the Petri net.
+        num_transitions: The number of transitions in the Petri net.
+    """
     num_places = petri_matrix.shape[0]
     # Input arcs
     for i in range(num_places):
@@ -37,12 +57,12 @@ def _create_edges(graph, petri_matrix, num_transitions):
                 graph.edge(f"t{j+1}", f"P{i+1}")
 
 
-def plot_petri_net(petri_net_matrix, output_filepath):
+def plot_petri_net(petri_net_matrix: np.ndarray, output_filepath: Path) -> None:
     """Generates a visual representation of a Petri net.
 
     Args:
-        petri_net_matrix (np.ndarray): The matrix describing the Petri net.
-        output_filepath (str): The path to save the output PNG file.
+        petri_net_matrix: The matrix describing the Petri net.
+        output_filepath: The path to save the output PNG file.
     """
     graph = Digraph()
     matrix = np.array(petri_net_matrix, dtype=int)
@@ -59,14 +79,19 @@ def plot_petri_net(petri_net_matrix, output_filepath):
         print(f"Error rendering Petri net: {e}")
 
 
-def plot_reachability_graph(vertices, edges, arc_transitions, output_filepath):
+def plot_reachability_graph(
+    vertices: List[np.ndarray],
+    edges: List[Tuple[int, int]],
+    arc_transitions: List[int],
+    output_filepath: Path,
+) -> None:
     """Generates a visualization of a reachability graph.
 
     Args:
-        vertices (list): A list of vertices.
-        edges (list): A list of edges.
-        arc_transitions (list): A list of transition indices for each edge.
-        output_filepath (str): The path to save the output PNG file.
+        vertices: A list of vertices.
+        edges: A list of edges.
+        arc_transitions: A list of transition indices for each edge.
+        output_filepath: The path to save the output PNG file.
     """
     graph = Digraph()
     for i, vertex in enumerate(vertices):
@@ -85,8 +110,21 @@ def plot_reachability_graph(vertices, edges, arc_transitions, output_filepath):
         print(f"Error rendering reachability graph: {e}")
 
 
-def _format_metrics_label(steady_state_vector, token_density, avg_token_count):
-    """Formats the metrics label for the SPN plot."""
+def _format_metrics_label(
+    steady_state_vector: np.ndarray,
+    token_density: np.ndarray,
+    avg_token_count: np.ndarray,
+) -> str:
+    """Formats the metrics label for the SPN plot.
+
+    Args:
+        steady_state_vector: The steady-state probability vector.
+        token_density: The token probability density function.
+        avg_token_count: The average number of tokens in each place.
+
+    Returns:
+        The formatted metrics label.
+    """
     return (
         f"\\nSteady State Probability:\\n{np.array(steady_state_vector)}\\n"
         f"Token Probability Density Function:\\n{np.array(token_density)}\\n"
@@ -96,26 +134,26 @@ def _format_metrics_label(steady_state_vector, token_density, avg_token_count):
 
 
 def plot_stochastic_petri_net(
-    vertices,
-    edges,
-    arc_transitions,
-    lambda_values,
-    steady_state_vector,
-    token_density,
-    avg_token_count,
-    output_filepath="test-output/test.gv",
-):
+    vertices: List[np.ndarray],
+    edges: List[Tuple[int, int]],
+    arc_transitions: List[int],
+    lambda_values: List[float],
+    steady_state_vector: np.ndarray,
+    token_density: np.ndarray,
+    avg_token_count: np.ndarray,
+    output_filepath: Path,
+) -> None:
     """Generates a visualization of a Stochastic Petri Net (SPN).
 
     Args:
-        vertices (list): A list of vertices.
-        edges (list): A list of edges.
-        arc_transitions (list): A list of transition indices for each edge.
-        lambda_values (list): Firing rates for the transitions.
-        steady_state_vector (np.ndarray): Steady-state probability vector.
-        token_density (np.ndarray): Token probability density function.
-        avg_token_count (np.ndarray): Average number of tokens in each place.
-        output_filepath (str, optional): The path to save the output file.
+        vertices: A list of vertices.
+        edges: A list of edges.
+        arc_transitions: A list of transition indices for each edge.
+        lambda_values: Firing rates for the transitions.
+        steady_state_vector: Steady-state probability vector.
+        token_density: Token probability density function.
+        avg_token_count: Average number of tokens in each place.
+        output_filepath: The path to save the output file.
     """
     graph = Digraph()
     for i, vertex in enumerate(vertices):
@@ -126,7 +164,9 @@ def plot_stochastic_petri_net(
         label = f"t{arc_transition+1} [{lambda_values[int(arc_transition)]}]"
         graph.edge(src, dest, label=label)
 
-    metrics_label = _format_metrics_label(steady_state_vector, token_density, avg_token_count)
+    metrics_label = _format_metrics_label(
+        steady_state_vector, token_density, avg_token_count
+    )
     graph.attr(label=metrics_label, fontsize="20")
     graph.format = "png"
     try:
@@ -135,19 +175,20 @@ def plot_stochastic_petri_net(
         print(f"Error rendering SPN: {e}")
 
 
-def save_visualizations_for_instance(graph_data, output_dir, file_counter):
+def save_visualizations_for_instance(
+    graph_data: Dict[str, Any], output_dir: Path, file_counter: int
+) -> None:
     """Saves Petri net and SPN visualizations for a single data instance.
 
     Args:
-        graph_data (dict): Data for plotting.
-        output_dir (str): Directory to save the images.
-        file_counter (int): Counter for unique filenames.
+        graph_data: Data for plotting.
+        output_dir: Directory to save the images.
+        file_counter: Counter for unique filenames.
     """
-    output_dir = Path(output_dir)
     petri_filepath = output_dir / f"petri_net_{file_counter}"
     spn_filepath = output_dir / f"spn_{file_counter}"
 
-    plot_petri_net(graph_data["petri_net"], str(petri_filepath))
+    plot_petri_net(graph_data["petri_net"], petri_filepath)
     plot_stochastic_petri_net(
         graph_data["arr_vlist"],
         graph_data["arr_edge"],
@@ -160,16 +201,20 @@ def save_visualizations_for_instance(graph_data, output_dir, file_counter):
     )
 
 
-def visualize_dataset(all_graph_data, output_dir, num_parallel_jobs):
+def visualize_dataset(
+    all_graph_data: Dict[str, Any], output_dir: Path, num_parallel_jobs: int
+) -> None:
     """Generates and saves visualizations for a collection of data in parallel.
 
     Args:
-        all_graph_data (dict): A dictionary of data instances to visualize.
-        output_dir (str): The directory to save the images.
-        num_parallel_jobs (int): The number of parallel jobs to run.
+        all_graph_data: A dictionary of data instances to visualize.
+        output_dir: The directory to save the images.
+        num_parallel_jobs: The number of parallel jobs to run.
     """
     Parallel(n_jobs=num_parallel_jobs)(
-        delayed(save_visualizations_for_instance)(graph_data, output_dir, i + 1)
+        delayed(save_visualizations_for_instance)(
+            graph_data, output_dir, i + 1
+        )
         for i, graph_data in enumerate(all_graph_data.values())
     )
     print("Image saving process initiated successfully!")

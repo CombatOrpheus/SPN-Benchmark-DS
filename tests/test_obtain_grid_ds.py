@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent.absolute() / "scripts"))
 
 import SPNGenerate
 import ObtainGridDS
-from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils import data_util as DU
 
 
 class TestObtainGridDS:

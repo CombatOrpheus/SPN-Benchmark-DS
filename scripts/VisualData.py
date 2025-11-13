@@ -6,8 +6,8 @@ Stochastic Petri Nets (SPNs) for both the training and testing sets.
 """
 
 from pathlib import Path
-from spn_datasets.visualization import Visual
-from spn_datasets.utils import DataUtil as DU
+from spn_datasets.utils import visual as Visual
+from spn_datasets.utils import data_util as DU
 
 
 def visualize_dataset(dataset_type, dataset_name, num_parallel_jobs=-1):

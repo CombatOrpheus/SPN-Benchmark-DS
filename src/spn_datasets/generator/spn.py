@@ -4,16 +4,21 @@ including computing state equations, calculating average markings, and
 generating SPN tasks.
 """
 
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 import numpy as np
 import numba
-from scipy.sparse import csc_array, lil_matrix
+from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
-from spn_datasets.generator import ArrivableGraph as ArrGra
+from spn_datasets.generator import arrivable_graph as ArrGra
 
 
 @numba.jit(nopython=True, cache=True)
-def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
+def _compute_state_equation_numba(
+    num_vertices: int,
+    edges: np.ndarray,
+    arc_transitions: np.ndarray,
+    lambda_values: np.ndarray,
+) -> np.ndarray:
     """Numba-optimized core of compute_state_equation."""
     state_matrix = np.zeros((num_vertices + 1, num_vertices), dtype=np.float64)
     for i in range(len(edges)):
@@ -47,10 +52,8 @@ def compute_state_equation(
     """
     num_vertices = len(vertices)
 
-    # Use Numba-optimized function for the core computation
     edges_arr = np.array(edges, dtype=np.int32)
     if edges_arr.ndim == 1:
-        # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
 
     state_matrix_np = _compute_state_equation_numba(
@@ -60,7 +63,6 @@ def compute_state_equation(
         lambda_values,
     )
 
-    # Convert the NumPy array to a sparse matrix
     state_matrix = csc_array(state_matrix_np)
 
     target_vector = np.zeros(num_vertices + 1, dtype=float)
@@ -70,7 +72,9 @@ def compute_state_equation(
 
 
 @numba.jit(nopython=True, cache=True)
-def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def compute_average_markings(
+    vertices: np.ndarray, steady_state_probs: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the average number of tokens for each place.
 
     Args:
@@ -85,56 +89,61 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
     unique_token_values = np.unique(vertices)
     num_places = vertices.shape[1]
-    marking_density_matrix = np.zeros((num_places, len(unique_token_values)), dtype=float)
+    marking_density_matrix = np.zeros(
+        (num_places, len(unique_token_values)), dtype=float
+    )
 
     for place_idx in range(num_places):
         for token_idx, token_val in enumerate(unique_token_values):
             states_with_token = vertices[:, place_idx] == token_val
-            marking_density_matrix[place_idx, token_idx] = np.sum(steady_state_probs[states_with_token])
+            marking_density_matrix[place_idx, token_idx] = np.sum(
+                steady_state_probs[states_with_token]
+            )
 
     return marking_density_matrix, avg_tokens_per_place
 
 
-def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
+def solve_for_steady_state(
+    state_matrix: csc_array, target_vector: np.ndarray
+) -> Optional[np.ndarray]:
     """Solves for steady-state probabilities using spsolve on a modified system."""
-    num_vertices = state_matrix.shape[1]
-
-    # To use spsolve, we need a square matrix. We can achieve this by removing
-    # one of the redundant equations from the state matrix (the first `num_vertices` rows).
-    # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
     A_sq = state_matrix[1:, :]
     b_sq = target_vector[1:]
 
     try:
         probs = spsolve(A_sq, b_sq)
-
-        # Normalize probabilities
         probs[probs < 0] = 0
         prob_sum = np.sum(probs)
         if prob_sum > 1e-9:
             return probs / prob_sum
-
     except (np.linalg.LinAlgError, ValueError):
-        pass  # Handle numerical issues
+        pass
 
     return None
 
 
-def _run_sgn_task(
-    vertices, edges, arc_transitions, transition_rates
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Helper to run a single SGN task."""
+def _run_spn_task(
+    vertices: list,
+    edges: list,
+    arc_transitions: list,
+    transition_rates: np.ndarray,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], bool]:
+    """Helper to run a single SPN task."""
     if not vertices:
         return None, None, None, False
 
     vertices_np = np.array(vertices, dtype=int)
-    state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, transition_rates)
+    state_matrix, target_vector = compute_state_equation(
+        vertices, edges, arc_transitions, transition_rates
+    )
     steady_state_probs = solve_for_steady_state(state_matrix, target_vector)
 
     if steady_state_probs is None:
         return None, None, None, False
 
-    marking_density, avg_markings = compute_average_markings(vertices_np, steady_state_probs)
+    marking_density, avg_markings = compute_average_markings(
+        vertices_np, steady_state_probs
+    )
     return steady_state_probs, marking_density, avg_markings, True
 
 
@@ -143,15 +152,18 @@ def generate_stochastic_net_task(
     edges: List[List[int]],
     arc_transitions: List[int],
     num_transitions: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Generates an SGN task with random firing rates.
-
-    Returns:
-        A tuple with steady-state probabilities, mark density, average markings,
-        firing rates, and a success flag.
-    """
+) -> Tuple[
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    np.ndarray,
+    bool,
+]:
+    """Generates an SPN task with random firing rates."""
     transition_rates = np.random.randint(1, 11, size=num_transitions).astype(float)
-    probs, density, markings, success = _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
+    probs, density, markings, success = _run_spn_task(
+        vertices, edges, arc_transitions, transition_rates
+    )
     return probs, density, markings, transition_rates, success
 
 
@@ -160,17 +172,17 @@ def generate_stochastic_net_task_with_rates(
     edges: List[List[int]],
     arc_transitions: List[int],
     transition_rates: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Generates an SGN task with specified firing rates."""
-    return _run_sgn_task(vertices, edges, arc_transitions, np.array(transition_rates, dtype=float))
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], bool]:
+    """Generates an SPN task with specified firing rates."""
+    return _run_spn_task(
+        vertices, edges, arc_transitions, np.array(transition_rates, dtype=float)
+    )
 
 
 @numba.jit(nopython=True, cache=True)
-def is_connected(petri_net_matrix):
+def is_connected(petri_net_matrix: np.ndarray) -> bool:
     """Checks if the Petri net has isolated places or transitions."""
-    if petri_net_matrix.size == 0:
-        return False
-    if petri_net_matrix.ndim != 2:
+    if petri_net_matrix.size == 0 or petri_net_matrix.ndim != 2:
         return False
     num_places, num_cols = petri_net_matrix.shape
     if num_places == 0 or num_cols < 3:
@@ -179,13 +191,13 @@ def is_connected(petri_net_matrix):
     if num_transitions == 0:
         return False
 
-    # Check for isolated places
     if np.any(np.sum(petri_net_matrix[:, : 2 * num_transitions], axis=1) == 0):
         return False
 
-    # Check for isolated transitions
     pre_sum = np.sum(petri_net_matrix[:, :num_transitions], axis=0)
-    post_sum = np.sum(petri_net_matrix[:, num_transitions : 2 * num_transitions], axis=0)
+    post_sum = np.sum(
+        petri_net_matrix[:, num_transitions : 2 * num_transitions], axis=0
+    )
     if np.any(pre_sum + post_sum == 0):
         return False
 
@@ -193,21 +205,25 @@ def is_connected(petri_net_matrix):
 
 
 def _create_spn_result_dict(
-    petri_net_matrix,
-    vertices,
-    edges,
-    arc_transitions,
-    firing_rates,
-    steady_state_probs,
-    marking_densities,
-    average_markings,
+    petri_net_matrix: np.ndarray,
+    vertices: list,
+    edges: list,
+    arc_transitions: list,
+    firing_rates: np.ndarray,
+    steady_state_probs: np.ndarray,
+    marking_densities: np.ndarray,
+    average_markings: np.ndarray,
 ) -> Dict[str, Any]:
     """Creates a dictionary for SPN results."""
     return {
         "petri_net": petri_net_matrix,
         "arr_vlist": np.array(vertices, dtype=int),
-        "arr_edge": np.array(edges, dtype=int) if edges else np.empty((0, 2), dtype=int),
-        "arr_tranidx": np.array(arc_transitions, dtype=int) if arc_transitions else np.empty((0,), dtype=int),
+        "arr_edge": np.array(edges, dtype=int)
+        if edges
+        else np.empty((0, 2), dtype=int),
+        "arr_tranidx": np.array(arc_transitions, dtype=int)
+        if arc_transitions
+        else np.empty((0,), dtype=int),
         "spn_labda": firing_rates,
         "spn_steadypro": steady_state_probs,
         "spn_markdens": marking_densities,
@@ -222,12 +238,8 @@ def filter_spn(
     marks_lower_limit: int = 4,
     marks_upper_limit: int = 500,
 ) -> Tuple[Dict[str, Any], bool]:
-    """Filters an SPN based on reachability and other criteria.
-
-    Returns:
-        A tuple containing the results dictionary and a success flag.
-    """
-    petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
+    """Filters an SPN based on reachability and other criteria."""
+    petri_net_matrix = np.array(petri_net_matrix)
     if not is_connected(petri_net_matrix):
         return {}, False
 
@@ -237,24 +249,31 @@ def filter_spn(
         arc_transitions,
         num_transitions,
         is_bounded,
-    ) = ArrGra.generate_reachability_graph(petri_net_matrix, place_upper_bound, marks_upper_limit)
+    ) = ArrGra.generate_reachability_graph(
+        petri_net_matrix, place_upper_bound, marks_upper_limit
+    )
 
     if not is_bounded or not vertices or len(vertices) < marks_lower_limit:
         return {}, False
 
-    (
-        probs,
-        density,
-        markings,
-        rates,
-        success,
-    ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
+    probs, density, markings, rates, success = generate_stochastic_net_task(
+        vertices, edges, arc_transitions, num_transitions
+    )
 
-    if not success or np.sum(markings) > 1000 or np.sum(markings) < -1000:
+    if not success or not (-1000 < np.sum(markings) < 1000):
         return {}, False
 
     return (
-        _create_spn_result_dict(petri_net_matrix, vertices, edges, arc_transitions, rates, probs, density, markings),
+        _create_spn_result_dict(
+            petri_net_matrix,
+            vertices,
+            edges,
+            arc_transitions,
+            rates,
+            probs,
+            density,
+            markings,
+        ),
         True,
     )
 
@@ -267,16 +286,13 @@ def get_spn_info(
     transition_rates: np.ndarray,
 ) -> Tuple[Dict[str, Any], bool]:
     """Retrieves SPN info for a given structure and rates."""
-    petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
+    petri_net_matrix = np.array(petri_net_matrix)
     if not is_connected(petri_net_matrix) or not vertices:
         return {}, False
 
-    (
-        probs,
-        density,
-        markings,
-        success,
-    ) = generate_stochastic_net_task_with_rates(vertices, edges, arc_transitions, transition_rates)
+    probs, density, markings, success = generate_stochastic_net_task_with_rates(
+        vertices, edges, arc_transitions, transition_rates
+    )
 
     if not success:
         return {}, False

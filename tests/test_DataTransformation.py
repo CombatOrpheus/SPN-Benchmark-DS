@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from unittest.mock import patch
-from spn_datasets.generator.DataTransformation import (
+from spn_datasets.generator.data_transformation import (
     _generate_candidate_matrices,
     _generate_rate_variations,
     generate_petri_net_variations,
@@ -32,7 +32,7 @@ def test_generate_candidate_matrices(base_petri_matrix):
         assert c.shape[1] == base_petri_matrix.shape[1] or c.shape[1] == 0
 
 
-@patch("spn_datasets.generator.SPN.generate_stochastic_net_task_with_rates")
+@patch("spn_datasets.generator.spn.generate_stochastic_net_task_with_rates")
 def test_generate_rate_variations(mock_spn_task, base_petri_matrix):
     """Test the generation of rate variations."""
     mock_spn_task.return_value = (None, None, np.array([1.0]), True)
@@ -47,8 +47,8 @@ def test_generate_rate_variations(mock_spn_task, base_petri_matrix):
     assert mock_spn_task.call_count == 5
 
 
-@patch("spn_datasets.generator.SPN.filter_spn")
-@patch("spn_datasets.generator.DataTransformation._generate_rate_variations")
+@patch("spn_datasets.generator.spn.filter_spn")
+@patch("spn_datasets.generator.data_transformation._generate_rate_variations")
 def test_generate_petri_net_variations(mock_rate_variations, mock_filter_spn, base_petri_matrix):
     """Test the generation of Petri net variations."""
     mock_filter_spn.return_value = ({"petri_net": base_petri_matrix}, True)
@@ -59,7 +59,7 @@ def test_generate_petri_net_variations(mock_rate_variations, mock_filter_spn, ba
     assert len(variations) > 0
 
 
-@patch("spn_datasets.generator.SPN.get_spn_info")
+@patch("spn_datasets.generator.spn.get_spn_info")
 def test_generate_lambda_variations(mock_get_spn_info, base_petri_matrix):
     """Test the generation of lambda variations."""
     mock_get_spn_info.return_value = ({}, True)

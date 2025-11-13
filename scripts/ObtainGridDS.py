@@ -10,9 +10,9 @@ import time
 import numpy as np
 import h5py
 from tqdm import tqdm
-from spn_datasets.utils import DataUtil as DU
-from spn_datasets.utils import FileWriter as FW
-from spn_datasets.generator import DataTransformation as dts
+from spn_datasets.utils import data_util as DU
+from spn_datasets.utils import file_writer as FW
+from spn_datasets.generator import data_transformation as dts
 
 
 def get_grid_index(value, grid_boundaries):
@@ -103,7 +103,7 @@ def sample_and_transform_data(config):
         for j in range(num_marking_bins):
             directory_path = grid_data_loc / f"p{i+1}" / f"m{j+1}"
             sampled_list = DU.sample_json_files_from_directory(
-                config["samples_per_grid"], str(directory_path)
+                config["samples_per_grid"], directory_path
             )
             all_data.extend(sampled_list)
 

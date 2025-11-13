@@ -1,14 +1,23 @@
-"""
-This module provides functions for generating and modifying Petri nets.
-"""
+"""This module provides functions for generating and modifying Petri nets."""
 
 from random import choice
 import numpy as np
 import numba
+from typing import Tuple
 
 
-def _initialize_petri_net(num_places, num_transitions):
-    """Initializes the Petri net matrix and selects the first connection."""
+def _initialize_petri_net(
+    num_places: int, num_transitions: int
+) -> Tuple[np.ndarray, list, np.ndarray]:
+    """Initializes the Petri net matrix and selects the first connection.
+
+    Args:
+        num_places: The number of places.
+        num_transitions: The number of transitions.
+
+    Returns:
+        A tuple containing the initial Petri net matrix, remaining nodes, and sub-graph.
+    """
     remaining_nodes = list(range(1, num_places + num_transitions + 1))
     petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype="int32")
 
@@ -21,15 +30,34 @@ def _initialize_petri_net(num_places, num_transitions):
     if np.random.rand() <= 0.5:
         petri_matrix[first_place - 1, first_transition - num_places - 1] = 1
     else:
-        petri_matrix[first_place - 1, first_transition - num_places - 1 + num_transitions] = 1
+        petri_matrix[
+            first_place - 1, first_transition - num_places - 1 + num_transitions
+        ] = 1
 
     np.random.shuffle(remaining_nodes)
     sub_graph = np.array([first_place, first_transition])
     return petri_matrix, remaining_nodes, sub_graph
 
 
-def _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions):
-    """Connects the remaining nodes to the sub-graph."""
+def _connect_remaining_nodes(
+    petri_matrix: np.ndarray,
+    remaining_nodes: list,
+    sub_graph: np.ndarray,
+    num_places: int,
+    num_transitions: int,
+) -> np.ndarray:
+    """Connects the remaining nodes to the sub-graph.
+
+    Args:
+        petri_matrix: The Petri net matrix.
+        remaining_nodes: The list of remaining nodes to connect.
+        sub_graph: The current sub-graph.
+        num_places: The number of places.
+        num_transitions: The number of transitions.
+
+    Returns:
+        The updated Petri net matrix.
+    """
     for node in np.random.permutation(remaining_nodes):
         sub_places = sub_graph[sub_graph <= num_places]
         sub_transitions = sub_graph[sub_graph > num_places]
@@ -44,26 +72,31 @@ def _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_place
         if np.random.rand() <= 0.5:
             petri_matrix[place - 1, transition - num_places - 1] = 1
         else:
-            petri_matrix[place - 1, transition - num_places - 1 + num_transitions] = 1
+            petri_matrix[
+                place - 1, transition - num_places - 1 + num_transitions
+            ] = 1
 
         sub_graph = np.concatenate((sub_graph, [node]))
     return petri_matrix
 
 
-def generate_random_petri_net(num_places, num_transitions):
+def generate_random_petri_net(num_places: int, num_transitions: int) -> np.ndarray:
     """Generates a random Petri net matrix.
 
     Args:
-        num_places (int): The number of places.
-        num_transitions (int): The number of transitions.
+        num_places: The number of places.
+        num_transitions: The number of transitions.
 
     Returns:
-        np.ndarray: The generated Petri net matrix.
+        The generated Petri net matrix.
     """
-    petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(num_places, num_transitions)
-    petri_matrix = _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions)
+    petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(
+        num_places, num_transitions
+    )
+    petri_matrix = _connect_remaining_nodes(
+        petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions
+    )
 
-    # Add an initial marking
     random_place = np.random.randint(0, num_places)
     petri_matrix[random_place, -1] = 1
 
@@ -71,14 +104,14 @@ def generate_random_petri_net(num_places, num_transitions):
 
 
 @numba.jit(nopython=True, cache=True)
-def prune_petri_net(petri_matrix):
+def prune_petri_net(petri_matrix: np.ndarray) -> np.ndarray:
     """Prunes a Petri net by deleting edges and adding nodes.
 
     Args:
-        petri_matrix (np.ndarray): The Petri net matrix.
+        petri_matrix: The Petri net matrix.
 
     Returns:
-        np.ndarray: The pruned Petri net matrix.
+        The pruned Petri net matrix.
     """
     num_transitions = (petri_matrix.shape[1] - 1) // 2
     petri_matrix = delete_excess_edges(petri_matrix, num_transitions)
@@ -87,76 +120,90 @@ def prune_petri_net(petri_matrix):
 
 
 @numba.jit(nopython=True, cache=True)
-def delete_excess_edges(petri_matrix, num_transitions):
+def delete_excess_edges(
+    petri_matrix: np.ndarray, num_transitions: int
+) -> np.ndarray:
     """Deletes excess edges from the Petri net.
 
     Args:
-        petri_matrix (np.ndarray): The Petri net matrix.
-        num_transitions (int): The number of transitions.
+        petri_matrix: The Petri net matrix.
+        num_transitions: The number of transitions.
 
     Returns:
-        np.ndarray: The matrix with excess edges removed.
+        The matrix with excess edges removed.
     """
-    for i in range(petri_matrix.shape[0]):  # Iterate over places
+    for i in range(petri_matrix.shape[0]):
         if np.sum(petri_matrix[i, :-1]) >= 3:
             edge_indices = np.where(petri_matrix[i, :-1] == 1)[0]
             if len(edge_indices) > 2:
-                indices_to_remove = np.random.permutation(edge_indices)[: len(edge_indices) - 2]
+                indices_to_remove = np.random.permutation(edge_indices)[
+                    : len(edge_indices) - 2
+                ]
                 petri_matrix[i, indices_to_remove] = 0
 
-    for i in range(2 * num_transitions):  # Iterate over transitions
+    for i in range(2 * num_transitions):
         if np.sum(petri_matrix[:, i]) >= 3:
             edge_indices = np.where(petri_matrix[:, i] == 1)[0]
             if len(edge_indices) > 2:
-                indices_to_remove = np.random.permutation(edge_indices)[: len(edge_indices) - 2]
+                indices_to_remove = np.random.permutation(edge_indices)[
+                    : len(edge_indices) - 2
+                ]
                 petri_matrix[indices_to_remove, i] = 0
 
     return petri_matrix
 
 
 @numba.jit(nopython=True, cache=True)
-def add_missing_connections(petri_matrix, num_transitions):
+def add_missing_connections(
+    petri_matrix: np.ndarray, num_transitions: int
+) -> np.ndarray:
     """Adds connections to ensure the Petri net is valid.
 
     Args:
-        petri_matrix (np.ndarray): The Petri net matrix.
-        num_transitions (int): The number of transitions.
+        petri_matrix: The Petri net matrix.
+        num_transitions: The number of transitions.
 
     Returns:
-        np.ndarray: The matrix with missing connections added.
+        The matrix with missing connections added.
     """
-    # Ensure each transition has at least one connection
     pre_matrix = petri_matrix[:, :num_transitions]
     post_matrix = petri_matrix[:, num_transitions:-1]
 
-    zero_sum_cols = np.where(np.sum(petri_matrix[:, : 2 * num_transitions], axis=0) == 0)[0]
+    zero_sum_cols = np.where(
+        np.sum(petri_matrix[:, : 2 * num_transitions], axis=0) == 0
+    )[0]
     random_rows = np.random.randint(0, petri_matrix.shape[0], size=len(zero_sum_cols))
     for i in range(len(zero_sum_cols)):
         petri_matrix[random_rows[i], zero_sum_cols[i]] = 1
 
-    # Ensure each place has at least one incoming and one outgoing edge
     rows_with_zero_pre_sum = np.where(np.sum(pre_matrix, axis=1) == 0)[0]
-    random_cols_pre = np.random.randint(0, num_transitions, size=len(rows_with_zero_pre_sum))
+    random_cols_pre = np.random.randint(
+        0, num_transitions, size=len(rows_with_zero_pre_sum)
+    )
     for i in range(len(rows_with_zero_pre_sum)):
         petri_matrix[rows_with_zero_pre_sum[i], random_cols_pre[i]] = 1
 
     rows_with_zero_post_sum = np.where(np.sum(post_matrix, axis=1) == 0)[0]
-    random_cols_post = np.random.randint(0, num_transitions, size=len(rows_with_zero_post_sum))
+    random_cols_post = np.random.randint(
+        0, num_transitions, size=len(rows_with_zero_post_sum)
+    )
     for i in range(len(rows_with_zero_post_sum)):
-        petri_matrix[rows_with_zero_post_sum[i], random_cols_post[i] + num_transitions] = 1
+        petri_matrix[
+            rows_with_zero_post_sum[i], random_cols_post[i] + num_transitions
+        ] = 1
 
     return petri_matrix
 
 
 @numba.jit(nopython=True, cache=True)
-def add_tokens_randomly(petri_matrix):
+def add_tokens_randomly(petri_matrix: np.ndarray) -> np.ndarray:
     """Adds tokens to random places in the Petri net.
 
     Args:
-        petri_matrix (np.ndarray): The Petri net matrix.
+        petri_matrix: The Petri net matrix.
 
     Returns:
-        np.ndarray: The matrix with tokens added.
+        The matrix with tokens added.
     """
     random_values = np.random.randint(0, 10, size=petri_matrix.shape[0])
     petri_matrix[:, -1] += (random_values <= 2).astype(np.int32)
