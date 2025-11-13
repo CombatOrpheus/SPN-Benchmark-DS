@@ -5,21 +5,32 @@ variations of a given Petri net structure and its firing rates.
 
 import numpy as np
 from joblib import Parallel, delayed
-from spn_datasets.generator import SPN
+from spn_datasets.generator import spn as SPN
 import numba
-from numba.core import types
 from numba.typed import List
+from typing import Dict, Any
 
 
 @numba.jit(nopython=True, cache=True)
 def _generate_candidate_matrices_numba(
-    base_petri_matrix,
-    enable_delete_edge,
-    enable_add_edge,
-    enable_add_token,
-    enable_delete_token,
-):
-    """Numba-optimized function to generate candidate Petri net matrices."""
+    base_petri_matrix: np.ndarray,
+    enable_delete_edge: bool,
+    enable_add_edge: bool,
+    enable_add_token: bool,
+    enable_delete_token: bool,
+) -> List:
+    """Numba-optimized function to generate candidate Petri net matrices.
+
+    Args:
+        base_petri_matrix: The base Petri net matrix.
+        enable_delete_edge: Whether to enable deleting edges.
+        enable_add_edge: Whether to enable adding edges.
+        enable_add_token: Whether to enable adding tokens.
+        enable_delete_token: Whether to enable deleting tokens.
+
+    Returns:
+        A list of candidate Petri net matrices.
+    """
     candidate_matrices = List()
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
@@ -60,7 +71,9 @@ def _generate_candidate_matrices_numba(
     return candidate_matrices
 
 
-def _generate_candidate_matrices(base_petri_matrix, config):
+def _generate_candidate_matrices(
+    base_petri_matrix: np.ndarray, config: Dict[str, Any]
+) -> list:
     """Generates candidate Petri net matrices based on the provided augmentation config."""
     base_petri_matrix = base_petri_matrix.astype(np.int32)
     candidate_matrices = _generate_candidate_matrices_numba(
@@ -71,7 +84,6 @@ def _generate_candidate_matrices(base_petri_matrix, config):
         config.get("enable_delete_token", False),
     )
 
-    # Add a place (handled outside Numba)
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
     if config.get("enable_add_place", False) and num_transitions > 0:
@@ -84,7 +96,9 @@ def _generate_candidate_matrices(base_petri_matrix, config):
     return list(candidate_matrices)
 
 
-def _generate_rate_variations(base_variation, num_variations):
+def _generate_rate_variations(
+    base_variation: Dict[str, Any], num_variations: int
+) -> list:
     """Generates variations of firing rates for a given Petri net structure."""
     rate_variations = []
     p_net = base_variation["petri_net"]
@@ -94,7 +108,12 @@ def _generate_rate_variations(base_variation, num_variations):
 
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
-        s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
+        (
+            s_probs,
+            m_dens,
+            avg_marks,
+            success,
+        ) = SPN.generate_stochastic_net_task_with_rates(
             [v for v in base_variation["arr_vlist"]],
             base_variation["arr_edge"].tolist(),
             base_variation["arr_tranidx"].tolist(),
@@ -117,23 +136,26 @@ def _generate_rate_variations(base_variation, num_variations):
     return rate_variations
 
 
-def generate_petri_net_variations(petri_matrix, config):
-    """Generates variations of a Petri net to augment the dataset based on a config dict.
+def generate_petri_net_variations(
+    petri_matrix: np.ndarray, config: Dict[str, Any]
+) -> list:
+    """Generates variations of a Petri net to augment the dataset.
 
     Args:
-        petri_matrix (numpy.ndarray): The base Petri net matrix.
-        config (dict): A dictionary containing augmentation settings.
+        petri_matrix: The base Petri net matrix.
+        config: A dictionary containing augmentation settings.
 
     Returns:
-        list: A list of dictionaries, each representing an augmented Petri net.
+        A list of dictionaries, each representing an augmented Petri net.
     """
     base_petri_matrix = np.array(petri_matrix)
     candidate_matrices = _generate_candidate_matrices(base_petri_matrix, config)
 
-    # Limit the number of candidates to avoid excessive computation
     max_candidates = config.get("max_candidates_per_structure", 50)
     if len(candidate_matrices) > max_candidates:
-        indices = np.random.choice(len(candidate_matrices), max_candidates, replace=False)
+        indices = np.random.choice(
+            len(candidate_matrices), max_candidates, replace=False
+        )
         candidate_matrices = [candidate_matrices[i] for i in indices]
 
     parallel_jobs = config.get("number_of_parallel_jobs", 1)
@@ -142,7 +164,8 @@ def generate_petri_net_variations(petri_matrix, config):
     marks_upper = config.get("marks_upper_limit", 500)
 
     results = Parallel(n_jobs=parallel_jobs)(
-        delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices
+        delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper)
+        for matrix in candidate_matrices
     )
     structural_variations = [res for res, success in results if success]
 
@@ -152,21 +175,25 @@ def generate_petri_net_variations(petri_matrix, config):
     if config.get("enable_rate_variations", False):
         num_rate_variations = config.get("num_rate_variations_per_structure", 5)
         for base_variation in structural_variations:
-            rate_variations = _generate_rate_variations(base_variation, num_rate_variations)
+            rate_variations = _generate_rate_variations(
+                base_variation, num_rate_variations
+            )
             all_augmented_data.extend(rate_variations)
 
     return all_augmented_data
 
 
-def generate_lambda_variations(petri_dict, num_lambda_variations):
+def generate_lambda_variations(
+    petri_dict: Dict[str, Any], num_lambda_variations: int
+) -> list:
     """Generates variations of lambda values for a given Petri net.
 
     Args:
-        petri_dict (dict): A dictionary representing the Petri net.
-        num_lambda_variations (int): The number of lambda variations to generate.
+        petri_dict: A dictionary representing the Petri net.
+        num_lambda_variations: The number of lambda variations to generate.
 
     Returns:
-        list: A list of dictionaries, each representing a Petri net with new lambda values.
+        A list of dictionaries, each representing a Petri net with new lambda values.
     """
     lambda_variations = []
     petri_net = petri_dict["petri_net"]

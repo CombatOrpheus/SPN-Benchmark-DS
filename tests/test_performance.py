@@ -1,8 +1,8 @@
 import pytest
-from spn_datasets.generator.PetriGenerate import generate_random_petri_net
-from spn_datasets.generator.ArrivableGraph import generate_reachability_graph
-from spn_datasets.generator.SPN import solve_for_steady_state
-from spn_datasets.generator.DataTransformation import generate_petri_net_variations
+from spn_datasets.generator.petri_generate import generate_random_petri_net
+from spn_datasets.generator.arrivable_graph import generate_reachability_graph
+from spn_datasets.generator.spn import solve_for_steady_state
+from spn_datasets.generator.data_transformation import generate_petri_net_variations
 import numpy as np
 from scipy.sparse import csc_array
 from memory_profiler import memory_usage
