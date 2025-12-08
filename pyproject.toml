@@ -29,6 +29,8 @@ dependencies = [
     # Excel file handling
     "openpyxl",
 
+    # Cloud Storage
+    "google-cloud-storage",
 ]
 
 [project.optional-dependencies]

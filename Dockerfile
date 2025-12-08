@@ -21,6 +21,6 @@ RUN uv sync --system-site-packages
 # Copy the rest of the application's code into the container.
 COPY . .
 
-# Set the default command to open a bash shell.
-# This provides an interactive environment for users to run scripts or explore the container.
-CMD ["/bin/bash"]
+# Set the default command to run the Cloud Run Job entrypoint.
+# This expects SPN_CONFIG_JSON and GCS_BUCKET_NAME env vars to be set.
+CMD ["python", "scripts/cloud_run_entrypoint.py"]
