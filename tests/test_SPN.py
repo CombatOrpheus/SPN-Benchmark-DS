@@ -10,6 +10,7 @@ from spn_datasets.generator.SPN import (
     filter_spn,
     get_spn_info,
     _compute_state_equation_numba,
+    compute_qualitative_properties,
 )
 
 
@@ -129,3 +130,66 @@ def test_compute_state_equation_numba():
     state_matrix = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
     expected_matrix = np.array([[-2.0, 0.0], [2.0, 0.0], [1.0, 1.0]])
     assert np.allclose(state_matrix, expected_matrix)
+
+
+def test_compute_qualitative_properties_simple_cycle():
+    """Test qualitative properties on a simple cycle 0 <-> 1."""
+    vertices = [np.array([1, 0]), np.array([0, 1])]
+    edges = [[0, 1], [1, 0]]
+    props = compute_qualitative_properties(vertices, edges)
+
+    assert props["is_deadlock_free"] is True
+    assert props["is_reversible"] is True
+    assert props["is_safe"] is True
+    assert props["max_tokens"] == 1
+
+
+def test_compute_qualitative_properties_deadlock():
+    """Test qualitative properties with a deadlock 0 -> 1 -> 2 (stuck)."""
+    vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]
+    edges = [[0, 1], [1, 2]]
+    props = compute_qualitative_properties(vertices, edges)
+
+    assert props["is_deadlock_free"] is False
+    assert props["is_reversible"] is False
+    assert props["max_tokens"] == 1
+
+
+def test_compute_qualitative_properties_unsafe():
+    """Test qualitative properties with unsafe marking."""
+    vertices = [np.array([1, 0]), np.array([0, 2])]
+    edges = [[0, 1], [1, 0]]
+    props = compute_qualitative_properties(vertices, edges)
+
+    assert props["is_safe"] is False
+    assert props["max_tokens"] == 2
+
+
+def test_compute_qualitative_properties_no_edges():
+    """Test qualitative properties with no edges (single state)."""
+    vertices = [np.array([1])]
+    edges = []
+    props = compute_qualitative_properties(vertices, edges)
+
+    # If only one state and no transitions, it's effectively a deadlock
+    # unless there are no transitions defined in the system at all.
+    # But from reachability graph perspective, if it can't move, it's a deadlock.
+    assert props["is_deadlock_free"] is False
+    # Reversibility: Can reach M0 from M0? Yes.
+    assert props["is_reversible"] is True
+
+
+def test_compute_qualitative_properties_disconnected_reachability():
+    """Test reversibility with disconnected components (impossible in reachability from M0, but testing graph logic)."""
+    # 0 -> 1, 2 (2 is unreachable from 0, but passed in vertices list)
+    # This simulates a graph where not all nodes can reach back to 0.
+    vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]
+    edges = [[0, 1], [1, 0], [2, 2]]
+
+    # In a real reachability graph generated from M0 (0), 2 wouldn't be there.
+    # But if we pass it manually:
+    props = compute_qualitative_properties(vertices, edges)
+
+    # 2 cannot reach 0. So not reversible.
+    assert props["is_reversible"] is False
+    assert props["is_deadlock_free"] is True  # All nodes have outgoing edges.

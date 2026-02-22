@@ -4,6 +4,7 @@ including computing state equations, calculating average markings, and
 generating SPN tasks.
 """
 
+from collections import deque
 from typing import List, Tuple, Dict, Any
 import numpy as np
 import numba
@@ -192,6 +193,76 @@ def is_connected(petri_net_matrix):
     return True
 
 
+def compute_qualitative_properties(
+    vertices: List[np.ndarray],
+    edges: List[List[int]],
+) -> Dict[str, Any]:
+    """Computes qualitative properties of the SPN reachability graph.
+
+    Metrics:
+    - is_deadlock_free: True if every reachable state has at least one enabled transition.
+    - is_reversible: True if the initial marking is reachable from every reachable state.
+    - is_safe: True if the number of tokens in any place never exceeds 1.
+    - max_tokens: The maximum number of tokens in any place across all reachable markings.
+    """
+    if not vertices:
+        return {
+            "is_deadlock_free": False,
+            "is_reversible": False,
+            "is_safe": False,
+            "max_tokens": 0,
+        }
+
+    num_vertices = len(vertices)
+
+    # Max tokens and Safeness
+    vertices_arr = np.array(vertices)
+    max_tokens = int(np.max(vertices_arr))
+    is_safe = max_tokens <= 1
+
+    if not edges:
+        # If there are vertices but no edges, and num_vertices > 0
+        # If only 1 state (initial) and no edges, it's a deadlock unless no transitions exist.
+        return {
+            "is_deadlock_free": False,
+            "is_reversible": True if num_vertices == 1 else False,
+            "is_safe": is_safe,
+            "max_tokens": max_tokens,
+        }
+
+    # Deadlock-free: Check if every node has an outgoing edge
+    sources = set(e[0] for e in edges)
+    is_deadlock_free = len(sources) == num_vertices
+
+    # Reversibility: Check if M0 (index 0) is reachable from all nodes
+    # We do a BFS on the transpose graph starting from 0.
+    adj_t = [[] for _ in range(num_vertices)]
+    for u, v in edges:
+        adj_t[v].append(u)
+
+    visited = [False] * num_vertices
+    queue = deque([0])
+    visited[0] = True
+    count = 1  # visited 0
+
+    while queue:
+        u = queue.popleft()
+        for v in adj_t[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+                count += 1
+
+    is_reversible = count == num_vertices
+
+    return {
+        "is_deadlock_free": is_deadlock_free,
+        "is_reversible": is_reversible,
+        "is_safe": is_safe,
+        "max_tokens": max_tokens,
+    }
+
+
 def _create_spn_result_dict(
     petri_net_matrix,
     vertices,
@@ -203,7 +274,7 @@ def _create_spn_result_dict(
     average_markings,
 ) -> Dict[str, Any]:
     """Creates a dictionary for SPN results."""
-    return {
+    result = {
         "petri_net": petri_net_matrix,
         "arr_vlist": np.array(vertices, dtype=int),
         "arr_edge": np.array(edges, dtype=int) if edges else np.empty((0, 2), dtype=int),
@@ -214,6 +285,10 @@ def _create_spn_result_dict(
         "spn_allmus": average_markings,
         "spn_mu": np.sum(average_markings),
     }
+
+    qual_props = compute_qualitative_properties(vertices, edges)
+    result.update(qual_props)
+    return result
 
 
 def filter_spn(
