@@ -6,10 +6,11 @@ generating SPN tasks.
 
 from collections import deque
 from typing import List, Tuple, Dict, Any
+import warnings
 import numpy as np
 import numba
 from scipy.sparse import csc_array, lil_matrix
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, MatrixRankWarning
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
@@ -107,7 +108,9 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
     b_sq = target_vector[1:]
 
     try:
-        probs = spsolve(A_sq, b_sq)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=MatrixRankWarning)
+            probs = spsolve(A_sq, b_sq)
 
         # Normalize probabilities
         probs[probs < 0] = 0
@@ -115,7 +118,7 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
         if prob_sum > 1e-9:
             return probs / prob_sum
 
-    except (np.linalg.LinAlgError, ValueError):
+    except (np.linalg.LinAlgError, ValueError, MatrixRankWarning):
         pass  # Handle numerical issues
 
     return None
@@ -168,7 +171,7 @@ def generate_stochastic_net_task_with_rates(
 
 @numba.jit(nopython=True, cache=True)
 def is_connected(petri_net_matrix):
-    """Checks if the Petri net has isolated places or transitions."""
+    """Checks if the Petri net is connected (single component)."""
     if petri_net_matrix.size == 0:
         return False
     if petri_net_matrix.ndim != 2:
@@ -180,17 +183,58 @@ def is_connected(petri_net_matrix):
     if num_transitions == 0:
         return False
 
-    # Check for isolated places
+    # Check for isolated places (fast fail)
     if np.any(np.sum(petri_net_matrix[:, : 2 * num_transitions], axis=1) == 0):
         return False
 
-    # Check for isolated transitions
+    # Check for isolated transitions (fast fail)
     pre_sum = np.sum(petri_net_matrix[:, :num_transitions], axis=0)
     post_sum = np.sum(petri_net_matrix[:, num_transitions : 2 * num_transitions], axis=0)
     if np.any(pre_sum + post_sum == 0):
         return False
 
-    return True
+    # BFS to check for full connectivity (single component)
+    num_nodes = num_places + num_transitions
+    visited = np.zeros(num_nodes, dtype=np.bool_)
+    queue = np.empty(num_nodes, dtype=np.int32)
+    head = 0
+    tail = 0
+
+    # Start BFS from node 0 (which is a Place)
+    queue[tail] = 0
+    tail += 1
+    visited[0] = True
+    count = 0
+
+    while head < tail:
+        u = queue[head]
+        head += 1
+        count += 1
+
+        if u < num_places:
+            # u is a Place
+            p = u
+            for t in range(num_transitions):
+                # Check connection P -> T (Pre) or T -> P (Post)
+                # Pre is at column t, Post is at column num_transitions + t
+                if petri_net_matrix[p, t] == 1 or petri_net_matrix[p, num_transitions + t] == 1:
+                    v = num_places + t
+                    if not visited[v]:
+                        visited[v] = True
+                        queue[tail] = v
+                        tail += 1
+        else:
+            # u is a Transition
+            t = u - num_places
+            for p in range(num_places):
+                if petri_net_matrix[p, t] == 1 or petri_net_matrix[p, num_transitions + t] == 1:
+                    v = p
+                    if not visited[v]:
+                        visited[v] = True
+                        queue[tail] = v
+                        tail += 1
+
+    return count == num_nodes
 
 
 def compute_qualitative_properties(
