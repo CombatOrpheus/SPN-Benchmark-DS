@@ -7,49 +7,6 @@ import numpy as np
 import numba
 
 
-def _initialize_petri_net(num_places, num_transitions):
-    """Initializes the Petri net matrix and selects the first connection."""
-    remaining_nodes = list(range(1, num_places + num_transitions + 1))
-    petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype="int32")
-
-    first_place = choice(range(num_places)) + 1
-    first_transition = choice(range(num_transitions)) + num_places + 1
-
-    remaining_nodes.remove(first_place)
-    remaining_nodes.remove(first_transition)
-
-    if np.random.rand() <= 0.5:
-        petri_matrix[first_place - 1, first_transition - num_places - 1] = 1
-    else:
-        petri_matrix[first_place - 1, first_transition - num_places - 1 + num_transitions] = 1
-
-    np.random.shuffle(remaining_nodes)
-    sub_graph = np.array([first_place, first_transition])
-    return petri_matrix, remaining_nodes, sub_graph
-
-
-def _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions):
-    """Connects the remaining nodes to the sub-graph."""
-    for node in np.random.permutation(remaining_nodes):
-        sub_places = sub_graph[sub_graph <= num_places]
-        sub_transitions = sub_graph[sub_graph > num_places]
-
-        if node <= num_places:
-            place = node
-            transition = choice(sub_transitions)
-        else:
-            place = choice(sub_places)
-            transition = node
-
-        if np.random.rand() <= 0.5:
-            petri_matrix[place - 1, transition - num_places - 1] = 1
-        else:
-            petri_matrix[place - 1, transition - num_places - 1 + num_transitions] = 1
-
-        sub_graph = np.concatenate((sub_graph, [node]))
-    return petri_matrix
-
-
 def generate_random_petri_net(num_places, num_transitions):
     """Generates a random Petri net matrix.
 
@@ -60,10 +17,57 @@ def generate_random_petri_net(num_places, num_transitions):
     Returns:
         np.ndarray: The generated Petri net matrix.
     """
-    petri_matrix, remaining_nodes, sub_graph = _initialize_petri_net(num_places, num_transitions)
-    petri_matrix = _connect_remaining_nodes(petri_matrix, remaining_nodes, sub_graph, num_places, num_transitions)
+    petri_matrix = np.zeros((num_places, 2 * num_transitions + 1), dtype=np.int32)
 
-    # Add an initial marking
+    places = list(range(num_places))
+    transitions = list(range(num_transitions))
+
+    # Shuffle to ensure randomness
+    np.random.shuffle(places)
+    np.random.shuffle(transitions)
+
+    # Initialize with one place and one transition
+    active_places = [places.pop()]
+    active_transitions = [transitions.pop()]
+
+    # Connect the first pair
+    p_idx = active_places[0]
+    t_idx = active_transitions[0]
+
+    if np.random.rand() <= 0.5:
+        petri_matrix[p_idx, t_idx] = 1  # P -> T
+    else:
+        petri_matrix[p_idx, t_idx + num_transitions] = 1  # T -> P
+
+    # Collect remaining nodes
+    remaining_nodes = []
+    for p in places:
+        remaining_nodes.append(("P", p))
+    for t in transitions:
+        remaining_nodes.append(("T", t))
+
+    np.random.shuffle(remaining_nodes)
+
+    # Connect remaining nodes to the existing graph
+    for node_type, idx in remaining_nodes:
+        if node_type == "P":
+            # Connect new place to an existing transition
+            t_target = choice(active_transitions)
+            if np.random.rand() <= 0.5:
+                petri_matrix[idx, t_target] = 1  # P -> T
+            else:
+                petri_matrix[idx, t_target + num_transitions] = 1  # T -> P
+            active_places.append(idx)
+        else:
+            # Connect new transition to an existing place
+            p_target = choice(active_places)
+            if np.random.rand() <= 0.5:
+                petri_matrix[p_target, idx] = 1  # P -> T
+            else:
+                petri_matrix[p_target, idx + num_transitions] = 1  # T -> P
+            active_transitions.append(idx)
+
+    # Add an initial marking to a random place
     random_place = np.random.randint(0, num_places)
     petri_matrix[random_place, -1] = 1
 
