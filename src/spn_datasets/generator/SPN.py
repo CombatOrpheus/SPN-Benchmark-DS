@@ -5,7 +5,7 @@ generating SPN tasks.
 """
 
 from collections import deque
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 import warnings
 import numpy as np
 import numba
@@ -171,7 +171,19 @@ def generate_stochastic_net_task_with_rates(
 
 @numba.jit(nopython=True, cache=True)
 def is_connected(petri_net_matrix):
-    """Checks if the Petri net is connected (single component)."""
+    """Checks if the Petri net is weakly connected (single component).
+
+    This function treats the Petri net as a bipartite graph (Places U Transitions)
+    and checks if all nodes belong to a single connected component using BFS.
+    It considers edges as undirected for connectivity check.
+
+    Args:
+        petri_net_matrix (np.ndarray): The Petri net matrix of shape
+            (num_places, 2 * num_transitions + 1).
+
+    Returns:
+        bool: True if the graph is connected, False otherwise.
+    """
     if petri_net_matrix.size == 0:
         return False
     if petri_net_matrix.ndim != 2:
