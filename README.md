@@ -7,6 +7,7 @@ The core of this project is the `SPNGenerate.py` script, which allows you to cre
 ## Features
 
 - **Customizable SPN Generation**: Generate SPNs with configurable parameters, such as the number of places, transitions, and token configurations.
+- **Multiple Generation Methods**: Choose between random generation and a rule-based growth approach for better structural properties.
 - **Efficient Data Storage**: Datasets are stored in the HDF5 format, which provides high performance and compression.
 - **Easy-to-Use Data Reader**: A utility module, `utils.HDF5Reader`, is provided for easy access to the generated data.
 
@@ -81,6 +82,18 @@ To generate a dataset, run the following command:
 python SPNGenerate.py --config config/DataConfig/SPNGenerate.toml
 ```
 This will create an HDF5 file named `spn_dataset.hdf5` in the location specified in your configuration file.
+
+#### Generation Methods
+
+You can specify the method used to generate Petri nets using the `--generator_method` argument.
+
+*   **Random (`random`)**: The default method. Generates a random matrix and iteratively connects components.
+*   **Rule-Based (`rule_based`)**: Starts with a simple cycle and "grows" the network by splitting arcs and adding parallel paths. This method tends to produce nets with better connectivity and structural properties, resulting in a higher yield of valid SPNs.
+
+Example:
+```bash
+python SPNGenerate.py --config config/DataConfig/SPNGenerate.toml --generator_method rule_based
+```
 
 ### Reading the Generated Data
 
