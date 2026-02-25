@@ -66,13 +66,7 @@ def augment_single_spn(sample, config):
         return []
 
     petri_net = np.array(sample["petri_net"], dtype="long")
-    augmented_data = DT.generate_petri_net_variations(
-        petri_net,
-        config["place_upper_bound"],
-        config["marks_lower_limit"],
-        config["marks_upper_limit"],
-        config["number_of_parallel_jobs"],
-    )
+    augmented_data = DT.generate_petri_net_variations(petri_net, config)
 
     if not augmented_data:
         return []
@@ -89,6 +83,7 @@ def setup_arg_parser():
     parser = argparse.ArgumentParser(
         description="Generate Stochastic Petri Net (SPN) datasets.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        argument_default=argparse.SUPPRESS,
     )
 
     # General arguments
@@ -175,11 +170,8 @@ def run_generation_from_config(config):
     if output_format == "hdf5":
         with h5py.File(output_path, "w") as hf:
             hf.attrs["generation_config"] = json.dumps(config, cls=FW.NumpyEncoder)
-            dataset_group = hf.create_group("dataset_samples")
-            print(f"Writing {len(all_samples)} samples to HDF5...")
-            for i, sample in enumerate(tqdm(all_samples, desc="Writing to HDF5")):
-                sample_group = dataset_group.create_group(f"sample_{i:07d}")
-                FW.write_to_hdf5(sample_group, sample)
+            print(f"Writing {len(all_samples)} samples to HDF5 (packed)...")
+            FW.write_packed_hdf5(hf, all_samples)
             hf.attrs["total_samples_written"] = len(all_samples)
         print(f"HDF5 file '{output_path}' created successfully.")
     elif output_format == "jsonl":

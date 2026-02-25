@@ -19,14 +19,41 @@ class SPNDataReader:
         self.hdf5_path = hdf5_path
         self._file = None
         self._sample_keys = None
+        self._is_packed = False
+        self._length = 0
+        self._packed_keys = None
 
     def __enter__(self):
         self._file = h5py.File(self.hdf5_path, "r")
-        # The samples are stored in the 'dataset_samples' group
-        if "dataset_samples" not in self._file:
-            raise ValueError("HDF5 file does not contain 'dataset_samples' group.")
-        # Sorting the keys to ensure a consistent order
-        self._sample_keys = sorted(self._file["dataset_samples"].keys())
+        # The samples are stored in the 'dataset_samples' group (old format)
+        # or as columnar datasets in the root group (new packed format)
+        if "dataset_samples" in self._file:
+            self._is_packed = False
+            self._sample_keys = sorted(self._file["dataset_samples"].keys())
+            self._length = len(self._sample_keys)
+        else:
+            self._is_packed = True
+            # Determine length from any dataset
+            self._length = 0
+            self._packed_keys = set()
+
+            for key in self._file.keys():
+                if key.endswith("_ptr"):
+                    self._length = self._file[key].shape[0] - 1
+                    base = key[:-4]
+                    self._packed_keys.add(base)
+                elif key.endswith("_data"):
+                    base = key[:-5]
+                    self._packed_keys.add(base)
+                elif key.endswith("_shapes"):
+                    base = key[:-7]
+                    self._packed_keys.add(base)
+                else:
+                    # Scalar dataset
+                    if self._file[key].ndim > 0:
+                        if self._length == 0:
+                            self._length = self._file[key].shape[0]
+                        self._packed_keys.add(key)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -34,16 +61,26 @@ class SPNDataReader:
             self._file.close()
             self._file = None
             self._sample_keys = None
+            self._length = 0
+            self._packed_keys = None
 
     def __len__(self):
         """Returns the total number of samples in the dataset."""
-        if self._sample_keys is None:
-            with h5py.File(self.hdf5_path, "r") as hf:
-                if "dataset_samples" in hf:
-                    return len(hf["dataset_samples"])
-                else:
-                    return 0
-        return len(self._sample_keys)
+        if self._file is not None:
+            return self._length
+
+        # If not in context manager, open file temporarily
+        with h5py.File(self.hdf5_path, "r") as hf:
+            if "dataset_samples" in hf:
+                return len(hf["dataset_samples"])
+            else:
+                for key in hf.keys():
+                    if key.endswith("_ptr"):
+                        return hf[key].shape[0] - 1
+                    elif not key.endswith("_data") and not key.endswith("_shapes"):
+                        if hf[key].ndim > 0:
+                            return hf[key].shape[0]
+                return 0
 
     def get_sample(self, index):
         """
@@ -55,20 +92,70 @@ class SPNDataReader:
         Returns:
             dict: A dictionary containing the data for the specified sample.
         """
-        if index < 0 or index >= len(self):
-            raise IndexError("Index out of range.")
+        # Determine length to check bounds.
+        # Note: __len__ opens file if not open, which is inefficient if called repeatedly.
+        # But for correctness we need length.
+        length = len(self)
+        if index < 0 or index >= length:
+            raise IndexError(f"Index {index} out of range (length {length}).")
 
         if self._file is None:
-            # This allows for accessing samples without using a 'with' block,
-            # but it's less efficient if getting many samples individually.
             with h5py.File(self.hdf5_path, "r") as hf:
-                sample_name = sorted(hf["dataset_samples"].keys())[index]
-                sample_group = hf["dataset_samples"][sample_name]
-                return {key: value[()] for key, value in sample_group.items()}
+                if "dataset_samples" in hf:
+                    sample_name = sorted(hf["dataset_samples"].keys())[index]
+                    sample_group = hf["dataset_samples"][sample_name]
+                    return {key: value[()] for key, value in sample_group.items()}
+                else:
+                    return self._get_packed_sample(hf, index)
 
-        sample_name = self._sample_keys[index]
-        sample_group = self._file["dataset_samples"][sample_name]
-        return {key: value[()] for key, value in sample_group.items()}
+        if not self._is_packed:
+            sample_name = self._sample_keys[index]
+            sample_group = self._file["dataset_samples"][sample_name]
+            return {key: value[()] for key, value in sample_group.items()}
+        else:
+            return self._get_packed_sample(self._file, index)
+
+    def _get_packed_sample(self, hf, index):
+        """Helper to retrieve a sample from a packed HDF5 file."""
+        sample = {}
+
+        # Use cached keys if available (only in context manager)
+        keys = self._packed_keys
+
+        if keys is None:
+            # Determine keys dynamically if not cached
+            keys = set()
+            for k in hf.keys():
+                if k.endswith("_data"):
+                    keys.add(k[:-5])
+                elif k.endswith("_shapes"):
+                    keys.add(k[:-7])
+                elif k.endswith("_ptr"):
+                    keys.add(k[:-4])
+                else:
+                    keys.add(k)
+
+        for key in keys:
+            if f"{key}_ptr" in hf:
+                # Packed array field
+                ptr = hf[f"{key}_ptr"]
+                start = ptr[index]
+                end = ptr[index+1]
+
+                data_flat = hf[f"{key}_data"][start:end]
+                shape = hf[f"{key}_shapes"][index]
+
+                sample[key] = data_flat.reshape(shape)
+            elif key in hf:
+                # Scalar field
+                ds = hf[key]
+                if ds.ndim > 0:
+                    val = ds[index]
+                    if isinstance(val, bytes):
+                        sample[key] = val.decode('utf-8')
+                    else:
+                        sample[key] = val
+        return sample
 
     def __iter__(self):
         """
