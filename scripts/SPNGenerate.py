@@ -14,7 +14,7 @@ from tqdm import tqdm, trange
 
 from spn_datasets.generator import DataTransformation as DT
 from spn_datasets.generator import PetriGenerate as PeGen
-from spn_datasets.generator import SPN
+from spn_datasets.generator import RandomPetriNetGenerator, RuleBasedPetriNetGenerator, SPN
 from spn_datasets.utils import DataUtil as DU
 from spn_datasets.utils import FileWriter as FW
 
@@ -28,6 +28,12 @@ def generate_single_spn(config):
     Returns:
         dict or None: A dictionary containing the SPN data, or None if generation fails.
     """
+    generator_method = config.get("generator_method", "random")
+    if generator_method == "rule_based":
+        generator = RuleBasedPetriNetGenerator()
+    else:
+        generator = RandomPetriNetGenerator()
+
     max_attempts = 100
     for _ in range(max_attempts):
         place_num = np.random.randint(config["minimum_number_of_places"], config["maximum_number_of_places"] + 1)
@@ -35,7 +41,7 @@ def generate_single_spn(config):
             config["minimum_number_of_transitions"], config["maximum_number_of_transitions"] + 1
         )
 
-        petri_matrix = PeGen.generate_random_petri_net(place_num, trans_num)
+        petri_matrix = generator.generate(place_num, trans_num)
         if config.get("enable_pruning"):
             petri_matrix = PeGen.prune_petri_net(petri_matrix)
         if config.get("enable_token_addition"):
@@ -109,6 +115,13 @@ def setup_arg_parser():
 
     # Generation process arguments
     generation_process_group = parser.add_argument_group("Generation Process")
+    generation_process_group.add_argument(
+        "--generator_method",
+        type=str,
+        choices=["random", "rule_based"],
+        default="random",
+        help="Method to generate Petri nets.",
+    )
     generation_process_group.add_argument("--enable_pruning", action="store_true", help="Enable pruning.")
     generation_process_group.add_argument("--enable_token_addition", action="store_true", help="Enable adding tokens.")
 
