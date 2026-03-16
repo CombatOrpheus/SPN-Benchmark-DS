@@ -109,8 +109,15 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
     b_sq = target_vector[1:]
 
     try:
-        A_dense = A_sq.toarray()
-        probs = np.linalg.solve(A_dense, b_sq)
+        # For typical small SPN generation configurations (e.g., place_upper_bound=50, max_markings=500),
+        # the state matrix is very small. Converting to dense array and using standard solver is significantly faster.
+        if num_vertices <= 2000:
+            A_dense = A_sq.toarray()
+            probs = np.linalg.solve(A_dense, b_sq)
+        else:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("error", category=MatrixRankWarning)
+                probs = spsolve(A_sq, b_sq)
 
         # Normalize probabilities
         probs[probs < 0] = 0
@@ -118,8 +125,8 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
         if prob_sum > 1e-9:
             return probs / prob_sum
 
-    except np.linalg.LinAlgError:
-        pass  # Handle singular matrices
+    except (np.linalg.LinAlgError, ValueError, MatrixRankWarning):
+        pass  # Handle singular matrices and numerical issues
 
     return None
 

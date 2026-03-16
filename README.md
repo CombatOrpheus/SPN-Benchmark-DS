@@ -14,7 +14,7 @@ The core of this project is the `SPNGenerate.py` script, which allows you to cre
 
 ### Prerequisites
 
-Before you begin, ensure you have Python 3.11 or higher installed. You will also need to install the required dependencies.
+Before you begin, ensure you have Python 3.11 or higher installed. You will also need to install the required dependencies. Additionally, this project utilizes **Cython** for performance optimization during data generation. You must have a working C++ compiler installed on your system (e.g., `gcc` and `g++` on Linux, `clang++` on macOS, or Build Tools for Visual Studio on Windows) before installing the package.
 
 ### Installation
 

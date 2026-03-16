@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+*.c
+*.cpp
 .pytest_cache/
 Data/
 completed_configs/
