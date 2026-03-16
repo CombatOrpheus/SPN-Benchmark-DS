@@ -12,6 +12,7 @@ import numba
 from scipy.sparse import csc_array, lil_matrix
 from scipy.sparse.linalg import spsolve, MatrixRankWarning
 from spn_datasets.generator import ArrivableGraph as ArrGra
+from spn_datasets.generator import arrivable_graph_cy as arr_cy
 
 
 @numba.jit(nopython=True, cache=True)
@@ -98,19 +99,18 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
 
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
-    """Solves for steady-state probabilities using spsolve on a modified system."""
+    """Solves for steady-state probabilities using a dense solver on a modified system."""
     num_vertices = state_matrix.shape[1]
 
-    # To use spsolve, we need a square matrix. We can achieve this by removing
+    # To use a standard solver, we need a square matrix. We can achieve this by removing
     # one of the redundant equations from the state matrix (the first `num_vertices` rows).
     # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
     A_sq = state_matrix[1:, :]
     b_sq = target_vector[1:]
 
     try:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("error", category=MatrixRankWarning)
-            probs = spsolve(A_sq, b_sq)
+        A_dense = A_sq.toarray()
+        probs = np.linalg.solve(A_dense, b_sq)
 
         # Normalize probabilities
         probs[probs < 0] = 0
@@ -118,8 +118,8 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
         if prob_sum > 1e-9:
             return probs / prob_sum
 
-    except (np.linalg.LinAlgError, ValueError, MatrixRankWarning):
-        pass  # Handle numerical issues
+    except np.linalg.LinAlgError:
+        pass  # Handle singular matrices
 
     return None
 
@@ -356,7 +356,7 @@ def filter_spn(
         arc_transitions,
         num_transitions,
         is_bounded,
-    ) = ArrGra.generate_reachability_graph(petri_net_matrix, place_upper_bound, marks_upper_limit)
+    ) = arr_cy.generate_reachability_graph(petri_net_matrix, place_upper_bound, marks_upper_limit)
 
     if not is_bounded or not vertices or len(vertices) < marks_lower_limit:
         return {}, False

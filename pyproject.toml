@@ -1,10 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel", "Cython", "numpy"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "SPN-Benchmarks"
 version = "0.1.0"
 description = "A project for generating and benchmarking Stochastic Petri Nets."
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = { text = "MIT" }
 
 dependencies = [
     # Core scientific and data handling packages
@@ -28,7 +32,7 @@ dependencies = [
 
     # Excel file handling
     "openpyxl",
-
+    "Cython",
 ]
 
 [project.optional-dependencies]
