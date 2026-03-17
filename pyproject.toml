@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "cython>=3.0.0", "numpy>=2.0.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "SPN-Benchmarks"
 version = "0.1.0"
@@ -18,17 +22,15 @@ dependencies = [
     "joblib==1.5.2",
     "numba==0.61.2",
     "toml",
-
     # Utilities
     "tqdm==4.67.1",
     "graphviz==0.21",
     "scikit-learn==1.7.1",
     "jsonpickle==4.1.1",
     "jsonschema==4.25.1",
-
     # Excel file handling
     "openpyxl",
-
+    "cython>=3.2.4",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +44,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [tool.black]
 line-length = 120

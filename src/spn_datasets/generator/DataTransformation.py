@@ -10,6 +10,12 @@ import numba
 from numba.core import types
 from numba.typed import List
 
+try:
+    from spn_datasets.generator._cython_data_transformation import _generate_candidate_matrices as _cython_generate_candidate_matrices
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 @numba.jit(nopython=True, cache=True)
 def _generate_candidate_matrices_numba(
@@ -63,15 +69,26 @@ def _generate_candidate_matrices_numba(
 def _generate_candidate_matrices(base_petri_matrix, config):
     """Generates candidate Petri net matrices based on the provided augmentation config."""
     base_petri_matrix = base_petri_matrix.astype(np.int32)
-    candidate_matrices = _generate_candidate_matrices_numba(
-        base_petri_matrix,
-        config.get("enable_delete_edge", False),
-        config.get("enable_add_edge", False),
-        config.get("enable_add_token", False),
-        config.get("enable_delete_token", False),
-    )
 
-    # Add a place (handled outside Numba)
+    if CYTHON_AVAILABLE:
+        candidate_matrices = _cython_generate_candidate_matrices(
+            base_petri_matrix,
+            config.get("enable_delete_edge", False),
+            config.get("enable_add_edge", False),
+            config.get("enable_add_token", False),
+            config.get("enable_delete_token", False),
+        )
+    else:
+        candidate_matrices = _generate_candidate_matrices_numba(
+            base_petri_matrix,
+            config.get("enable_delete_edge", False),
+            config.get("enable_add_edge", False),
+            config.get("enable_add_token", False),
+            config.get("enable_delete_token", False),
+        )
+        candidate_matrices = list(candidate_matrices)
+
+    # Add a place (handled outside Numba/Cython)
     num_places, num_cols = base_petri_matrix.shape
     num_transitions = (num_cols - 1) // 2
     if config.get("enable_add_place", False) and num_transitions > 0:
@@ -81,7 +98,7 @@ def _generate_candidate_matrices(base_petri_matrix, config):
         modified_matrix = np.vstack([base_petri_matrix, new_place_row])
         candidate_matrices.append(modified_matrix)
 
-    return list(candidate_matrices)
+    return candidate_matrices
 
 
 def _generate_rate_variations(base_variation, num_variations):

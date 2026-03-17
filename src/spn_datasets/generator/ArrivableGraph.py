@@ -9,6 +9,12 @@ import numba
 from numba.core import types
 from numba.typed import Dict, List
 
+try:
+    from spn_datasets.generator._cython_arrivable_graph import _bfs_core as _cython_bfs_core
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 @numba.jit(nopython=True, cache=True)
 def fnv1a_hash(data):
@@ -174,18 +180,27 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     initial_marking = np.array(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
-    visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core(
-        initial_marking,
-        pre_matrix,
-        change_matrix,
-        place_upper_limit,
-        max_markings_to_explore,
-    )
+    if CYTHON_AVAILABLE:
+        py_visited_markings_list, py_reachability_edges, py_edge_transition_indices, is_bounded = _cython_bfs_core(
+            initial_marking.astype(np.int64),
+            pre_matrix.astype(np.int32),
+            change_matrix.astype(np.int32),
+            place_upper_limit,
+            max_markings_to_explore,
+        )
+    else:
+        visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core(
+            initial_marking,
+            pre_matrix,
+            change_matrix,
+            place_upper_limit,
+            max_markings_to_explore,
+        )
 
-    # Convert Numba Lists to Python lists for compatibility
-    py_visited_markings_list = [np.array(m) for m in visited_markings_list]
-    py_reachability_edges = [list(e) for e in reachability_edges]
-    py_edge_transition_indices = list(edge_transition_indices)
+        # Convert Numba Lists to Python lists for compatibility
+        py_visited_markings_list = [np.array(m) for m in visited_markings_list]
+        py_reachability_edges = [list(e) for e in reachability_edges]
+        py_edge_transition_indices = list(edge_transition_indices)
 
     return (
         py_visited_markings_list,

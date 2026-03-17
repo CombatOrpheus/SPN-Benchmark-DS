@@ -13,6 +13,7 @@ from tqdm import tqdm
 from spn_datasets.generator import DataTransformation as DT
 from spn_datasets.generator import PetriGenerate as PeGen
 from spn_datasets.generator import RandomPetriNetGenerator, RuleBasedPetriNetGenerator, SPN
+from spn_datasets.generator.dataset_generator import DatasetGenerator
 from spn_datasets.utils import DataUtil as DU
 from spn_datasets.utils import FileWriter as FW
 
