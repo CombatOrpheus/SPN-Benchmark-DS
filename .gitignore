@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.hdf5
 .pytest_cache/
 Data/
 completed_configs/
