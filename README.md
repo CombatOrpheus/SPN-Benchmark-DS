@@ -37,6 +37,19 @@ Before you begin, ensure you have Python 3.11 or higher installed. You will also
     conda activate spn-benchmark
     ```
 
+### Optional Cython Acceleration
+
+For heavily utilized generation functions (such as BFS graph generation and edge pruning), an optional Cython backend is provided to accelerate computations.
+
+By default, the package will attempt to use these compiled Cython extensions. If they are not available (e.g., if you don't have a C++ compiler installed), the package will gracefully fall back to the existing Numba and pure Python implementations without throwing an error.
+
+To build and use the Cython extensions:
+1. Ensure you have a working C++ compiler installed on your system (e.g., `gcc` or `clang`).
+2. Install the package in editable mode, which will automatically compile the extensions:
+    ```bash
+    uv pip install -e .
+    ```
+
 ### Testing
 
 This project uses `pytest` for testing, run via `uv`. To run the tests, follow these steps:
