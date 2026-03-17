@@ -8,9 +8,7 @@ import json
 from pathlib import Path
 import subprocess
 import h5py
-import numpy as np
-from joblib import Parallel, delayed
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from spn_datasets.generator import DataTransformation as DT
 from spn_datasets.generator import PetriGenerate as PeGen
@@ -158,23 +156,8 @@ def run_generation_from_config(config):
     DU.create_directory(output_dir)
     output_path = output_dir / config["output_file"]
 
-    print(f"Generating {config['number_of_samples_to_generate']} initial SPN samples...")
-    initial_samples = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
-        delayed(generate_single_spn)(config) for _ in trange(config["number_of_samples_to_generate"])
-    )
-    valid_samples = [s for s in initial_samples if s is not None]
-    print(f"Generated {len(valid_samples)} valid initial samples.")
-
-    all_samples = []
-    if config.get("enable_transformations"):
-        print("Augmenting samples...")
-        augmented_lists = Parallel(n_jobs=config["number_of_parallel_jobs"], backend="loky")(
-            delayed(augment_single_spn)(sample, config) for sample in tqdm(valid_samples, desc="Augmenting")
-        )
-        for sample_list in augmented_lists:
-            all_samples.extend(sample_list)
-    else:
-        all_samples = valid_samples
+    generator = DatasetGenerator(config)
+    all_samples = generator.generate_dataset()
 
     if not all_samples:
         print("No samples were generated. Skipping file writing and reporting.")
