@@ -13,3 +13,6 @@ temp_configs/
 # Benchmark results
 *.csv
 *.png
+*.so
+*.c
+*.cpp
