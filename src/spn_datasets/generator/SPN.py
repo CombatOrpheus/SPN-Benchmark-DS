@@ -9,24 +9,48 @@ from typing import List, Tuple, Dict, Any, Optional
 import warnings
 import numpy as np
 import numba
-from scipy.sparse import csc_array, lil_matrix
+from scipy.sparse import csc_array, coo_array, lil_matrix
 from scipy.sparse.linalg import spsolve, MatrixRankWarning
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
 @numba.jit(nopython=True, cache=True)
 def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
-    """Numba-optimized core of compute_state_equation."""
-    state_matrix = np.zeros((num_vertices + 1, num_vertices), dtype=np.float64)
-    for i in range(len(edges)):
-        edge = edges[i]
-        trans_idx = arc_transitions[i]
-        src_idx, dest_idx = edge[0], edge[1]
-        rate = lambda_values[trans_idx]
-        state_matrix[src_idx, src_idx] -= rate
-        state_matrix[dest_idx, src_idx] += rate
-    state_matrix[num_vertices, :] = 1.0
-    return state_matrix
+    """Numba-optimized core of compute_state_equation.
+    Generates sparse representations instead of an O(N^2) dense matrix."""
+    num_edges = len(edges)
+    num_elements = 2 * num_edges + num_vertices
+
+    rows = np.empty(num_elements, dtype=np.int32)
+    cols = np.empty(num_elements, dtype=np.int32)
+    data = np.empty(num_elements, dtype=np.float64)
+
+    idx = 0
+    for i in range(num_edges):
+        src_idx = edges[i, 0]
+        dest_idx = edges[i, 1]
+        rate = lambda_values[arc_transitions[i]]
+
+        # src_idx equation: state_matrix[src_idx, src_idx] -= rate
+        rows[idx] = src_idx
+        cols[idx] = src_idx
+        data[idx] = -rate
+        idx += 1
+
+        # dest_idx equation: state_matrix[dest_idx, src_idx] += rate
+        rows[idx] = dest_idx
+        cols[idx] = src_idx
+        data[idx] = rate
+        idx += 1
+
+    # sum of probabilities equation: state_matrix[num_vertices, :] = 1.0
+    for i in range(num_vertices):
+        rows[idx] = num_vertices
+        cols[idx] = i
+        data[idx] = 1.0
+        idx += 1
+
+    return rows, cols, data
 
 
 def compute_state_equation(
@@ -55,15 +79,15 @@ def compute_state_equation(
         # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
 
-    state_matrix_np = _compute_state_equation_numba(
+    rows, cols, data = _compute_state_equation_numba(
         num_vertices,
         edges_arr,
         np.array(arc_transitions, dtype=np.int32),
         lambda_values,
     )
 
-    # Convert the NumPy array to a sparse matrix
-    state_matrix = csc_array(state_matrix_np)
+    # coo_array automatically sums duplicates when converting to csc
+    state_matrix = coo_array((data, (rows, cols)), shape=(num_vertices + 1, num_vertices)).tocsc()
 
     target_vector = np.zeros(num_vertices + 1, dtype=float)
     target_vector[num_vertices] = 1.0
