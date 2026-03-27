@@ -121,13 +121,19 @@ def test_get_spn_info_unconnected():
     assert success is False
 
 
+from scipy.sparse import coo_array
+
+
 def test_compute_state_equation_numba():
     """Test the Numba-optimized state equation computation."""
     num_vertices = 2
     edges = np.array([[0, 1]])
     arc_transitions = np.array([0])
     lambda_values = np.array([2.0])
-    state_matrix = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
+    data, rows, cols = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
+
+    state_matrix = coo_array((data, (rows, cols)), shape=(num_vertices + 1, num_vertices)).toarray()
+
     expected_matrix = np.array([[-2.0, 0.0], [2.0, 0.0], [1.0, 1.0]])
     assert np.allclose(state_matrix, expected_matrix)
 
