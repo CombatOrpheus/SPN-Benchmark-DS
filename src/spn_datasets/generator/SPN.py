@@ -321,9 +321,9 @@ def compute_qualitative_properties(
 
     num_vertices = len(vertices)
 
-    # Max tokens and Safeness
-    vertices_arr = np.array(vertices)
-    max_tokens = int(np.max(vertices_arr))
+    # Max tokens and Safeness: avoid creating large intermediate dense arrays
+    # by calculating the maximum tokens iteratively across markings
+    max_tokens = int(max(np.max(v) for v in vertices))
     is_safe = max_tokens <= 1
 
     if not edges:
