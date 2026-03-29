@@ -105,17 +105,44 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
     Returns:
         A tuple containing the marking density matrix and the average tokens per place.
     """
-    prob_col_vector = steady_state_probs.reshape(-1, 1)
-    avg_tokens_per_place = np.sum(vertices * prob_col_vector, axis=0)
+    num_states, num_places = vertices.shape
 
-    unique_token_values = np.unique(vertices)
-    num_places = vertices.shape[1]
-    marking_density_matrix = np.zeros((num_places, len(unique_token_values)), dtype=float)
+    # Pre-allocate avg_tokens_per_place
+    avg_tokens_per_place = np.zeros(num_places, dtype=np.float64)
 
-    for place_idx in range(num_places):
-        for token_idx, token_val in enumerate(unique_token_values):
-            states_with_token = vertices[:, place_idx] == token_val
-            marking_density_matrix[place_idx, token_idx] = np.sum(steady_state_probs[states_with_token])
+    # Calculate max token to pre-allocate tracking arrays
+    max_token = np.max(vertices)
+
+    # Boolean array to track which tokens are present
+    present_tokens = np.zeros(max_token + 1, dtype=np.bool_)
+
+    # Single pass to compute avg_tokens_per_place and identify present tokens
+    for s in range(num_states):
+        prob = steady_state_probs[s]
+        for p in range(num_places):
+            val = vertices[s, p]
+            avg_tokens_per_place[p] += val * prob
+            present_tokens[val] = True
+
+    # Map the observed tokens to dense indices for the density matrix
+    num_unique_tokens = np.sum(present_tokens)
+    token_to_idx = np.full(max_token + 1, -1, dtype=np.int32)
+
+    idx = 0
+    for val in range(max_token + 1):
+        if present_tokens[val]:
+            token_to_idx[val] = idx
+            idx += 1
+
+    marking_density_matrix = np.zeros((num_places, num_unique_tokens), dtype=np.float64)
+
+    # Compute marking density matrix
+    for s in range(num_states):
+        prob = steady_state_probs[s]
+        for p in range(num_places):
+            token_val = vertices[s, p]
+            idx = token_to_idx[token_val]
+            marking_density_matrix[p, idx] += prob
 
     return marking_density_matrix, avg_tokens_per_place
 
