@@ -14,6 +14,8 @@ from datetime import datetime
 from tqdm import tqdm
 
 import SPNGenerate
+from spn_datasets.utils import obtain_grid_ds
+from spn_datasets.utils import DataUtil as DU
 
 
 def load_default_configs():
@@ -432,16 +434,22 @@ def run_scenario(scenario_dir, scenario_name, generation_mode):
 
     if generation_mode == "grid":
         grid_config_path = Path(scenario_dir) / "PartitionGrid.toml"
-        # Run ObtainGridDS.py
+        # Run ObtainGridDS.py logic directly
         print(f"Running ObtainGridDS.py for {scenario_name}...")
-        grid_process = subprocess.run(
-            ["python", "ObtainGridDS.py", "--config", str(grid_config_path)], capture_output=True, text=True
-        )
-        if grid_process.returncode != 0:
-            print(f"Error running ObtainGridDS.py for {scenario_name}.")
-            print(grid_process.stderr)
+        try:
+            grid_config = DU.load_toml_file(grid_config_path)
+            obtain_grid_ds.partition_data_into_grid(
+                grid_config["temporary_grid_location"],
+                grid_config["accumulation_data"],
+                grid_config["raw_data_location"],
+                grid_config,
+            )
+            processed_data = obtain_grid_ds.sample_and_transform_data(grid_config)
+            obtain_grid_ds.package_dataset(grid_config, processed_data)
+            print("ObtainGridDS.py completed successfully.")
+        except Exception as e:
+            print(f"Error running ObtainGridDS.py for {scenario_name}: {e}")
             return
-        print("ObtainGridDS.py completed successfully.")
 
         # Move grid config file to completed_configs
         new_grid_config_name = f"{scenario_name}-{timestamp}-PartitionGrid.toml"

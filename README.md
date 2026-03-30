@@ -74,13 +74,27 @@ For a consistent and reproducible development environment, you can use the provi
 
 ### Data Generation
 
-The primary script for generating datasets is `SPNGenerate.py`. Its behavior is controlled by a TOML configuration file. A sample configuration is provided at `config/DataConfig/SPNGenerate.toml`.
+**Important Note:** Because the package uses a `src/` layout, you should install the package in editable mode before running the generation scripts so that the `spn_datasets` module is discoverable:
+
+```bash
+# Recommended: Install the project in editable mode
+pip install -e .
+# Or using uv:
+uv pip install -e .
+```
+
+The primary script for generating datasets is `SPNGenerate.py` located in the root directory. Its behavior is controlled by a TOML configuration file. A sample configuration is provided at `config/DataConfig/SPNGenerate.toml`.
 
 To generate a dataset, run the following command:
 ```bash
 python SPNGenerate.py --config config/DataConfig/SPNGenerate.toml
 ```
 This will create an HDF5 file named `spn_dataset.hdf5` in the location specified in your configuration file.
+
+For a more guided, interactive experience (especially when generating grid-based datasets or multiple scenarios), you can also run:
+```bash
+python interactive_generator.py
+```
 
 ### Reading the Generated Data
 

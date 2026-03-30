@@ -10,10 +10,10 @@ import numpy as np
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent.absolute() / "src"))
-sys.path.append(str(Path(__file__).parent.parent.absolute() / "scripts"))
+sys.path.append(str(Path(__file__).parent.parent.absolute()))
 
 import SPNGenerate
-import ObtainGridDS
+from spn_datasets.utils import obtain_grid_ds as ObtainGridDS
 from spn_datasets.utils import DataUtil as DU
 
 

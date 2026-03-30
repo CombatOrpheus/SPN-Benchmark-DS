@@ -13,6 +13,7 @@ from tqdm import tqdm
 from spn_datasets.generator.dataset_generator import DatasetGenerator
 from spn_datasets.utils import DataUtil as DU
 from spn_datasets.utils import FileWriter as FW
+from spn_datasets.utils import generate_statistics as gen_stats
 
 
 def generate_single_spn(config):
@@ -166,24 +167,16 @@ def run_generation_from_config(config):
         print("Generating statistical report...")
         report_output_path = output_path.with_suffix(".html")
         try:
-            result = subprocess.run(
-                [
-                    "python",
-                    "generate_statistics.py",
-                    "--input",
-                    str(output_path),
-                    "--output",
-                    str(report_output_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            if result.stdout:
-                print(result.stdout)
-        except subprocess.CalledProcessError as e:
-            print(f"Error generating statistical report for {output_path}:")
-            print(e.stderr)
+            stats_df, report_config = gen_stats.load_data(output_path)
+            if not stats_df.empty:
+                plots = gen_stats.generate_plots(stats_df)
+                config_table_html = gen_stats.create_config_table(report_config)
+                gen_stats.generate_html_report(plots, config_table_html, report_output_path)
+                print(f"Successfully generated report at: {report_output_path}")
+            else:
+                print("No data loaded. Skipping report generation.")
+        except Exception as e:
+            print(f"Error generating statistical report for {output_path}: {e}")
 
 
 def main():
