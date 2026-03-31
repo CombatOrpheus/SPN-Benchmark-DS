@@ -34,21 +34,37 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
             - numpy.ndarray: Markings resulting from firing enabled transitions.
             - numpy.ndarray: Indices of the enabled transitions.
     """
+    num_places = pre_condition_matrix.shape[0]
     num_transitions = pre_condition_matrix.shape[1]
-    enabled_mask = np.ones(num_transitions, dtype=np.bool_)
-    for t in range(num_transitions):
-        for p in range(pre_condition_matrix.shape[0]):
-            if current_marking_vector[p] < pre_condition_matrix[p, t]:
-                enabled_mask[t] = False
-                break
-    enabled_transitions = np.where(enabled_mask)[0]
 
-    if not enabled_transitions.size:
-        num_places = pre_condition_matrix.shape[0]
+    # Pre-allocate array to avoid intermediate boolean mask and np.where
+    enabled_transitions = np.empty(num_transitions, dtype=np.int64)
+    enabled_count = 0
+
+    for t in range(num_transitions):
+        is_enabled = True
+        for p in range(num_places):
+            if current_marking_vector[p] < pre_condition_matrix[p, t]:
+                is_enabled = False
+                break
+        if is_enabled:
+            enabled_transitions[enabled_count] = t
+            enabled_count += 1
+
+    if enabled_count == 0:
         return np.empty((0, num_places), dtype=np.int64), np.empty((0,), dtype=np.int64)
 
-    new_markings = current_marking_vector[:, np.newaxis] + change_matrix[:, enabled_transitions]
-    return new_markings.T.copy(), enabled_transitions
+    enabled_transitions = enabled_transitions[:enabled_count]
+
+    # Pre-allocate new_markings to avoid implicit advanced indexing allocation
+    new_markings = np.empty((enabled_count, num_places), dtype=np.int64)
+
+    for i in range(enabled_count):
+        t = enabled_transitions[i]
+        for p in range(num_places):
+            new_markings[i, p] = current_marking_vector[p] + change_matrix[p, t]
+
+    return new_markings, enabled_transitions
 
 
 def _initialize_bfs(initial_marking):
