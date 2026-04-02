@@ -13,3 +13,4 @@ temp_configs/
 # Benchmark results
 *.csv
 *.png
+profiling/
