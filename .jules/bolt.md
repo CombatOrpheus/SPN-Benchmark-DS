@@ -7,7 +7,9 @@
 ## 2024-05-25 - Numba implicit array allocation and integer multiplication bottlenecks
 **Learning:** Using `np.where` and implicit boolean mask creation (e.g., `np.ones(..., dtype=np.bool_)`) inside tight Numba loops during reachability graph BFS causes significant overhead because intermediate arrays are repeatedly allocated and garbage collected. Furthermore, FNV-1a hash functions rely on heavy 64-bit integer multiplications.
 **Action:** Always pre-allocate dense arrays and use explicit tracking counters (e.g., `enabled_count`) in hot loops instead of relying on NumPy's high-level boolean indexing or `np.where` when working inside Numba. For simple hashing in inner loops, use DJB2 (`(h << 5) + h`) instead of FNV-1a to avoid 64-bit integer multiplication overhead.
-
+## 2024-05-26 - Numba high-level reduction operators bottleneck
+**Learning:** Using NumPy's high-level reduction operators (like `np.any`, `np.all`, or `np.sum(..., axis=1)`) inside tight Numba loops forces the allocation of intermediate arrays (e.g., boolean arrays or sum arrays) before evaluating the condition. This completely negates the benefit of short-circuiting and adds significant garbage collection overhead.
+**Action:** Replace high-level reduction operators with explicit nested loops and early exits (`break`) when writing Numba-optimized functions to avoid unnecessary array allocations and evaluate conditions significantly faster.
 ## 2024-05-27 - Numba compute_qualitative_properties memory bottleneck and array operations
 **Learning:** Using `np.where` inside numba is highly inefficient because it allocates boolean arrays implicitly and requires garbage collection overhead, particularly when finding zero sum columns or pre/post connections.
 **Action:** Replace `np.where` operations in numba-compiled functions (like `delete_excess_edges` and `add_missing_connections` in `PetriGenerate.py`) with explicit for loops using pre-allocated empty tracking arrays and counters. This prevents memory allocations within the loop and reduces overhead.
