@@ -101,33 +101,37 @@ def delete_excess_edges(petri_matrix, num_transitions):
     Returns:
         np.ndarray: The matrix with excess edges removed.
     """
-    for i in range(petri_matrix.shape[0]):  # Iterate over places
-        if np.sum(petri_matrix[i, :-1]) >= 3:
-            edge_indices = np.empty(petri_matrix.shape[1] - 1, dtype=np.int64)
-            count = 0
-            for j in range(petri_matrix.shape[1] - 1):
-                if petri_matrix[i, j] == 1:
-                    edge_indices[count] = j
-                    count += 1
-            if count > 2:
-                edge_indices = edge_indices[:count]
-                indices_to_remove = np.random.permutation(edge_indices)[: count - 2]
-                for j in range(len(indices_to_remove)):
-                    petri_matrix[i, indices_to_remove[j]] = 0
+    num_places = petri_matrix.shape[0]
+    num_cols = petri_matrix.shape[1] - 1
+
+    # ⚡ Bolt Optimization: Removed redundant np.sum() call.
+    # Numba creates intermediate arrays for np.sum, causing garbage collection overhead.
+    # Relying strictly on counting edges within the loop saves time.
+    for i in range(num_places):  # Iterate over places
+        edge_indices = np.empty(num_cols, dtype=np.int64)
+        count = 0
+        for j in range(num_cols):
+            if petri_matrix[i, j] == 1:
+                edge_indices[count] = j
+                count += 1
+
+        if count > 2:
+            indices_to_remove = np.random.permutation(edge_indices[:count])[: count - 2]
+            for j in range(len(indices_to_remove)):
+                petri_matrix[i, indices_to_remove[j]] = 0
 
     for i in range(2 * num_transitions):  # Iterate over transitions
-        if np.sum(petri_matrix[:, i]) >= 3:
-            edge_indices = np.empty(petri_matrix.shape[0], dtype=np.int64)
-            count = 0
-            for j in range(petri_matrix.shape[0]):
-                if petri_matrix[j, i] == 1:
-                    edge_indices[count] = j
-                    count += 1
-            if count > 2:
-                edge_indices = edge_indices[:count]
-                indices_to_remove = np.random.permutation(edge_indices)[: count - 2]
-                for j in range(len(indices_to_remove)):
-                    petri_matrix[indices_to_remove[j], i] = 0
+        edge_indices = np.empty(num_places, dtype=np.int64)
+        count = 0
+        for j in range(num_places):
+            if petri_matrix[j, i] == 1:
+                edge_indices[count] = j
+                count += 1
+
+        if count > 2:
+            indices_to_remove = np.random.permutation(edge_indices[:count])[: count - 2]
+            for j in range(len(indices_to_remove)):
+                petri_matrix[indices_to_remove[j], i] = 0
 
     return petri_matrix
 
@@ -143,50 +147,62 @@ def add_missing_connections(petri_matrix, num_transitions):
     Returns:
         np.ndarray: The matrix with missing connections added.
     """
-    # Ensure each transition has at least one connection
-    pre_matrix = petri_matrix[:, :num_transitions]
-    post_matrix = petri_matrix[:, num_transitions:-1]
+    num_places = petri_matrix.shape[0]
 
-    # Pre-allocate tracking arrays to avoid np.where inside Numba
+    # Ensure each transition has at least one connection
+    # ⚡ Bolt Optimization: Avoid using np.sum(..., axis=0) which forces Numba
+    # to evaluate and allocate the full array. Early-exit nested loops are
+    # much faster and use zero extra allocations.
     zero_sum_cols = np.empty(2 * num_transitions, dtype=np.int64)
     zero_sum_cols_count = 0
-    col_sums = np.sum(petri_matrix[:, : 2 * num_transitions], axis=0)
-    for i in range(len(col_sums)):
-        if col_sums[i] == 0:
-            zero_sum_cols[zero_sum_cols_count] = i
+
+    for j in range(2 * num_transitions):
+        has_edge = False
+        for i in range(num_places):
+            if petri_matrix[i, j] != 0:
+                has_edge = True
+                break
+        if not has_edge:
+            zero_sum_cols[zero_sum_cols_count] = j
             zero_sum_cols_count += 1
 
     if zero_sum_cols_count > 0:
-        zero_sum_cols = zero_sum_cols[:zero_sum_cols_count]
-        random_rows = np.random.randint(0, petri_matrix.shape[0], size=zero_sum_cols_count)
+        random_rows = np.random.randint(0, num_places, size=zero_sum_cols_count)
         for i in range(zero_sum_cols_count):
             petri_matrix[random_rows[i], zero_sum_cols[i]] = 1
 
     # Ensure each place has at least one incoming and one outgoing edge
-    rows_with_zero_pre_sum = np.empty(petri_matrix.shape[0], dtype=np.int64)
+    # ⚡ Bolt Optimization: Replaced np.sum(..., axis=1) with fast nested loops.
+    rows_with_zero_pre_sum = np.empty(num_places, dtype=np.int64)
     rows_with_zero_pre_sum_count = 0
-    pre_row_sums = np.sum(pre_matrix, axis=1)
-    for i in range(len(pre_row_sums)):
-        if pre_row_sums[i] == 0:
+    for i in range(num_places):
+        has_edge = False
+        for j in range(num_transitions):
+            if petri_matrix[i, j] != 0:
+                has_edge = True
+                break
+        if not has_edge:
             rows_with_zero_pre_sum[rows_with_zero_pre_sum_count] = i
             rows_with_zero_pre_sum_count += 1
 
     if rows_with_zero_pre_sum_count > 0:
-        rows_with_zero_pre_sum = rows_with_zero_pre_sum[:rows_with_zero_pre_sum_count]
         random_cols_pre = np.random.randint(0, num_transitions, size=rows_with_zero_pre_sum_count)
         for i in range(rows_with_zero_pre_sum_count):
             petri_matrix[rows_with_zero_pre_sum[i], random_cols_pre[i]] = 1
 
-    rows_with_zero_post_sum = np.empty(petri_matrix.shape[0], dtype=np.int64)
+    rows_with_zero_post_sum = np.empty(num_places, dtype=np.int64)
     rows_with_zero_post_sum_count = 0
-    post_row_sums = np.sum(post_matrix, axis=1)
-    for i in range(len(post_row_sums)):
-        if post_row_sums[i] == 0:
+    for i in range(num_places):
+        has_edge = False
+        for j in range(num_transitions):
+            if petri_matrix[i, num_transitions + j] != 0:
+                has_edge = True
+                break
+        if not has_edge:
             rows_with_zero_post_sum[rows_with_zero_post_sum_count] = i
             rows_with_zero_post_sum_count += 1
 
     if rows_with_zero_post_sum_count > 0:
-        rows_with_zero_post_sum = rows_with_zero_post_sum[:rows_with_zero_post_sum_count]
         random_cols_post = np.random.randint(0, num_transitions, size=rows_with_zero_post_sum_count)
         for i in range(rows_with_zero_post_sum_count):
             petri_matrix[rows_with_zero_post_sum[i], random_cols_post[i] + num_transitions] = 1
