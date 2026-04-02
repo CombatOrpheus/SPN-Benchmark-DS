@@ -13,6 +13,14 @@ from scipy.sparse import csc_array, coo_array, lil_matrix
 from scipy.sparse.linalg import spsolve, MatrixRankWarning
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
+try:
+    from .cy_spn import _compute_state_equation_cython
+    from .cy_spn import compute_average_markings_cython
+    from .cy_spn import is_connected_cython
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 @numba.jit(nopython=True, cache=True)
 def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
@@ -72,13 +80,18 @@ def compute_state_equation(
     """
     num_vertices = len(vertices)
 
-    # Use Numba-optimized function for the core computation
+    if not CYTHON_AVAILABLE:
+        _compute_state_equation_impl = _compute_state_equation_numba
+    else:
+        _compute_state_equation_impl = _compute_state_equation_cython
+
+    # Use optimized function for the core computation
     edges_arr = np.array(edges, dtype=np.int32)
     if edges_arr.ndim == 1:
         # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
 
-    data, rows, cols = _compute_state_equation_numba(
+    data, rows, cols = _compute_state_equation_impl(
         num_vertices,
         edges_arr,
         np.array(arc_transitions, dtype=np.int32),
@@ -95,7 +108,7 @@ def compute_state_equation(
 
 
 @numba.jit(nopython=True, cache=True)
-def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def compute_average_markings_numba(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the average number of tokens for each place.
 
     Args:
@@ -146,6 +159,10 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
     return marking_density_matrix, avg_tokens_per_place
 
+if not CYTHON_AVAILABLE:
+    compute_average_markings = compute_average_markings_numba
+else:
+    compute_average_markings = compute_average_markings_cython
 
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
     """Solves for steady-state probabilities using spsolve on a modified system."""
@@ -220,7 +237,9 @@ def generate_stochastic_net_task_with_rates(
 
 
 @numba.jit(nopython=True, cache=True)
-def is_connected(petri_net_matrix):
+def is_connected_numba(petri_net_matrix_in):
+    # Ensure it's treated as 2D int32 for Numba consistency
+    petri_net_matrix = petri_net_matrix_in
     """Checks if the Petri net is weakly connected (single component).
 
     This function treats the Petri net as a bipartite graph (Places U Transitions)
@@ -312,6 +331,18 @@ def is_connected(petri_net_matrix):
                         tail += 1
 
     return count == num_nodes
+
+def is_connected(petri_net_matrix):
+    petri_net_matrix = np.array(petri_net_matrix, dtype=np.int32)
+    if petri_net_matrix.ndim != 2:
+        return False
+    if petri_net_matrix.size == 0:
+        return False
+
+    if not CYTHON_AVAILABLE:
+        return is_connected_numba(petri_net_matrix)
+    else:
+        return is_connected_cython(petri_net_matrix)
 
 
 def compute_qualitative_properties(

@@ -10,6 +10,12 @@ import numba
 from numba.core import types
 from numba.typed import List
 
+try:
+    from .cy_data_transformation import _generate_candidate_matrices_cython
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 @numba.jit(nopython=True, cache=True)
 def _generate_candidate_matrices_numba(
@@ -60,10 +66,15 @@ def _generate_candidate_matrices_numba(
     return candidate_matrices
 
 
+if not CYTHON_AVAILABLE:
+    _generate_candidate_matrices_impl = _generate_candidate_matrices_numba
+else:
+    _generate_candidate_matrices_impl = _generate_candidate_matrices_cython
+
 def _generate_candidate_matrices(base_petri_matrix, config):
     """Generates candidate Petri net matrices based on the provided augmentation config."""
     base_petri_matrix = base_petri_matrix.astype(np.int32)
-    candidate_matrices = _generate_candidate_matrices_numba(
+    candidate_matrices = _generate_candidate_matrices_impl(
         base_petri_matrix,
         config.get("enable_delete_edge", False),
         config.get("enable_add_edge", False),

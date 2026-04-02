@@ -6,6 +6,15 @@ from random import choice
 import numpy as np
 import numba
 
+try:
+    from .cy_petri_generate import delete_excess_edges_cython
+    from .cy_petri_generate import add_missing_connections_cython
+    from .cy_petri_generate import add_tokens_randomly_cython
+    from .cy_petri_generate import prune_petri_net_cython
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 def generate_random_petri_net(num_places, num_transitions):
     """Generates a random Petri net matrix.
@@ -75,7 +84,7 @@ def generate_random_petri_net(num_places, num_transitions):
 
 
 @numba.jit(nopython=True, cache=True)
-def prune_petri_net(petri_matrix):
+def prune_petri_net_numba(petri_matrix):
     """Prunes a Petri net by deleting edges and adding nodes.
 
     Args:
@@ -85,13 +94,25 @@ def prune_petri_net(petri_matrix):
         np.ndarray: The pruned Petri net matrix.
     """
     num_transitions = (petri_matrix.shape[1] - 1) // 2
-    petri_matrix = delete_excess_edges(petri_matrix, num_transitions)
-    petri_matrix = add_missing_connections(petri_matrix, num_transitions)
+    petri_matrix = delete_excess_edges_numba(petri_matrix, num_transitions)
+    petri_matrix = add_missing_connections_numba(petri_matrix, num_transitions)
     return petri_matrix
 
+if not CYTHON_AVAILABLE:
+    prune_petri_net = prune_petri_net_numba
+else:
+    prune_petri_net = prune_petri_net_cython
+
+
+def delete_excess_edges(petri_matrix, num_transitions):
+    petri_matrix = np.array(petri_matrix, dtype=np.int32)
+    if not CYTHON_AVAILABLE:
+        return delete_excess_edges_numba(petri_matrix, num_transitions)
+    else:
+        return delete_excess_edges_cython(petri_matrix, num_transitions)
 
 @numba.jit(nopython=True, cache=True)
-def delete_excess_edges(petri_matrix, num_transitions):
+def delete_excess_edges_numba(petri_matrix, num_transitions):
     """Deletes excess edges from the Petri net.
 
     Args:
@@ -117,9 +138,15 @@ def delete_excess_edges(petri_matrix, num_transitions):
 
     return petri_matrix
 
+def add_missing_connections(petri_matrix, num_transitions):
+    petri_matrix = np.array(petri_matrix, dtype=np.int32)
+    if not CYTHON_AVAILABLE:
+        return add_missing_connections_numba(petri_matrix, num_transitions)
+    else:
+        return add_missing_connections_cython(petri_matrix, num_transitions)
 
 @numba.jit(nopython=True, cache=True)
-def add_missing_connections(petri_matrix, num_transitions):
+def add_missing_connections_numba(petri_matrix, num_transitions):
     """Adds connections to ensure the Petri net is valid.
 
     Args:
@@ -151,9 +178,15 @@ def add_missing_connections(petri_matrix, num_transitions):
 
     return petri_matrix
 
+def add_tokens_randomly(petri_matrix):
+    petri_matrix = np.array(petri_matrix, dtype=np.int32)
+    if not CYTHON_AVAILABLE:
+        return add_tokens_randomly_numba(petri_matrix)
+    else:
+        return add_tokens_randomly_cython(petri_matrix)
 
 @numba.jit(nopython=True, cache=True)
-def add_tokens_randomly(petri_matrix):
+def add_tokens_randomly_numba(petri_matrix):
     """Adds tokens to random places in the Petri net.
 
     Args:

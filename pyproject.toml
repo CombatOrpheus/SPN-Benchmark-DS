@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=42", "wheel", "Cython", "numpy==2.2.6"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "SPN-Benchmarks"
 version = "0.1.0"
@@ -29,6 +33,8 @@ dependencies = [
     # Excel file handling
     "openpyxl",
 
+    # Extensions
+    "Cython",
 ]
 
 [project.optional-dependencies]

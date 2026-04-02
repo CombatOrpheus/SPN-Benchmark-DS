@@ -9,9 +9,16 @@ import numba
 from numba.core import types
 from numba.typed import Dict, List
 
+try:
+    from .cy_arrivable_graph import _bfs_core_cython as _bfs_core_impl
+    from .cy_arrivable_graph import get_enabled_transitions_cython
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
+
 
 @numba.jit(nopython=True, cache=True)
-def fnv1a_hash(data):
+def fnv1a_hash_numba(data):
     """FNV-1a hash function for a numpy array."""
     h = np.uint64(14695981039346656037)
     for i in range(data.shape[0]):
@@ -19,9 +26,11 @@ def fnv1a_hash(data):
         h *= np.uint64(1099511628211)
     return h
 
+if not CYTHON_AVAILABLE:
+    fnv1a_hash = fnv1a_hash_numba
 
 @numba.jit(nopython=True, cache=True)
-def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector):
+def get_enabled_transitions_numba(pre_condition_matrix, change_matrix, current_marking_vector):
     """Identifies enabled transitions and calculates the resulting markings.
 
     Args:
@@ -66,6 +75,14 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
 
     return new_markings, enabled_transitions
 
+def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector):
+    if not CYTHON_AVAILABLE:
+        return get_enabled_transitions_numba(pre_condition_matrix, change_matrix, current_marking_vector)
+    else:
+        pre_condition_matrix = np.array(pre_condition_matrix, dtype=np.int32)
+        change_matrix = np.array(change_matrix, dtype=np.int32)
+        current_marking_vector = np.array(current_marking_vector, dtype=np.int64)
+        return get_enabled_transitions_cython(pre_condition_matrix, change_matrix, current_marking_vector)
 
 def _initialize_bfs(initial_marking):
     """Initializes the data structures for the BFS algorithm."""
@@ -85,7 +102,7 @@ def _initialize_bfs(initial_marking):
 
 
 @numba.jit(nopython=True, cache=True)
-def _bfs_core(
+def _bfs_core_numba(
     initial_marking,
     pre_matrix,
     change_matrix,
@@ -104,7 +121,7 @@ def _bfs_core(
         key_type=types.uint64,
         value_type=types.int64
     )
-    explored_markings_dict[fnv1a_hash(initial_marking)] = marking_index_counter
+    explored_markings_dict[fnv1a_hash_numba(initial_marking)] = marking_index_counter
 
     # The processing queue for the BFS algorithm, using a circular queue
     queue = np.empty(max_markings_to_explore, dtype=np.int64)
@@ -126,7 +143,7 @@ def _bfs_core(
             is_bounded = False
             break
 
-        enabled_next_markings, enabled_transition_indices = get_enabled_transitions(
+        enabled_next_markings, enabled_transition_indices = get_enabled_transitions_numba(
             pre_matrix, change_matrix, current_marking
         )
 
@@ -150,7 +167,7 @@ def _bfs_core(
         for i in range(enabled_next_markings.shape[0]):
             new_marking = enabled_next_markings[i]
             enabled_transition_index = enabled_transition_indices[i]
-            new_marking_hash = fnv1a_hash(new_marking)
+            new_marking_hash = fnv1a_hash_numba(new_marking)
 
             if new_marking_hash not in explored_markings_dict:
                 marking_index_counter += 1
@@ -174,6 +191,9 @@ def _bfs_core(
             break
 
     return visited_markings_list, reachability_edges, edge_transition_indices, is_bounded
+
+if not CYTHON_AVAILABLE:
+    _bfs_core_impl = _bfs_core_numba
 
 
 def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
@@ -203,7 +223,11 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     initial_marking = np.array(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
-    visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core(
+    if CYTHON_AVAILABLE:
+        pre_matrix = np.array(pre_matrix, dtype=np.int32)
+        change_matrix = np.array(change_matrix, dtype=np.int32)
+
+    visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core_impl(
         initial_marking,
         pre_matrix,
         change_matrix,
@@ -211,10 +235,15 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
         max_markings_to_explore,
     )
 
-    # Convert Numba Lists to Python lists for compatibility
-    py_visited_markings_list = [np.array(m) for m in visited_markings_list]
-    py_reachability_edges = [list(e) for e in reachability_edges]
-    py_edge_transition_indices = list(edge_transition_indices)
+    # Convert Numba Lists to Python lists for compatibility if Numba was used
+    if not CYTHON_AVAILABLE:
+        py_visited_markings_list = [np.array(m) for m in visited_markings_list]
+        py_reachability_edges = [list(e) for e in reachability_edges]
+        py_edge_transition_indices = list(edge_transition_indices)
+    else:
+        py_visited_markings_list = visited_markings_list
+        py_reachability_edges = [list(e) for e in reachability_edges]
+        py_edge_transition_indices = edge_transition_indices
 
     return (
         py_visited_markings_list,
