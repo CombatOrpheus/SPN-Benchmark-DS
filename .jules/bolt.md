@@ -10,3 +10,6 @@
 ## 2024-05-26 - Numba high-level reduction operators bottleneck
 **Learning:** Using NumPy's high-level reduction operators (like `np.any`, `np.all`, or `np.sum(..., axis=1)`) inside tight Numba loops forces the allocation of intermediate arrays (e.g., boolean arrays or sum arrays) before evaluating the condition. This completely negates the benefit of short-circuiting and adds significant garbage collection overhead.
 **Action:** Replace high-level reduction operators with explicit nested loops and early exits (`break`) when writing Numba-optimized functions to avoid unnecessary array allocations and evaluate conditions significantly faster.
+## 2024-05-27 - Numba compute_qualitative_properties memory bottleneck and array operations
+**Learning:** Using `np.where` inside numba is highly inefficient because it allocates boolean arrays implicitly and requires garbage collection overhead, particularly when finding zero sum columns or pre/post connections.
+**Action:** Replace `np.where` operations in numba-compiled functions (like `delete_excess_edges` and `add_missing_connections` in `PetriGenerate.py`) with explicit for loops using pre-allocated empty tracking arrays and counters. This prevents memory allocations within the loop and reduces overhead.
