@@ -130,9 +130,22 @@ def _bfs_core(
             pre_matrix, change_matrix, current_marking
         )
 
-        if enabled_next_markings.size > 0 and np.any(enabled_next_markings > place_upper_limit):
-            is_bounded = False
-            break
+        # ⚡ Bolt Optimization: Replace `np.any(enabled_next_markings > place_upper_limit)`
+        # with explicit nested loops. Numba compiles NumPy high-level reduction operators
+        # by first allocating the intermediate boolean mask and evaluating it entirely
+        # before reducing. Explicit loops avoid allocation and support early exit.
+        if enabled_next_markings.size > 0:
+            exceeds_limit = False
+            for i in range(enabled_next_markings.shape[0]):
+                for j in range(enabled_next_markings.shape[1]):
+                    if enabled_next_markings[i, j] > place_upper_limit:
+                        exceeds_limit = True
+                        break
+                if exceeds_limit:
+                    break
+            if exceeds_limit:
+                is_bounded = False
+                break
 
         for i in range(enabled_next_markings.shape[0]):
             new_marking = enabled_next_markings[i]
