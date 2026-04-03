@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 """
-This script profiles SPNGenerate.py using py-spy and outputs a flamegraph.
+This script profiles SPNGenerate.py using pyinstrument and outputs an interactive HTML flamegraph.
 It passes any additional command line arguments through to SPNGenerate.py.
 """
 
-import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -15,15 +14,14 @@ def main():
     profiling_dir = Path("profiling")
     profiling_dir.mkdir(exist_ok=True)
 
-    # Configure the output file path for py-spy
-    output_file = profiling_dir / "flamegraph.svg"
+    # Configure the output file path for pyinstrument
+    output_file = profiling_dir / "flamegraph.html"
 
     cmd = [
-        "uv", "run", "py-spy", "record",
+        "uv", "run", "pyinstrument",
+        "-r", "html",
         "-o", str(output_file),
-        "-f", "flamegraph",
-        "--",
-        "python", "SPNGenerate.py"
+        "SPNGenerate.py"
     ]
 
     # Append any arguments passed to this script
@@ -32,23 +30,14 @@ def main():
     print(f"Running command: {' '.join(cmd)}")
 
     try:
-        # Run py-spy using subprocess.
-        # Note: py-spy may need sudo/admin rights to profile processes on some systems.
-        # With subprocesses, using `--subprocesses` flag in py-spy could be useful, but let's stick to default.
-        subprocess.run(cmd, check=False)
-        # py-spy currently returns non-zero exit code due to No child process (os error 10) on some container environments
-        # when the profiled process finishes execution. We check if output_file was created to determine success.
-
-        if output_file.exists():
-            print(f"\nProfiling complete! Flamegraph saved to: {output_file}")
-            sys.exit(0)
-        else:
-            print("\nError: py-spy did not produce an output file.", file=sys.stderr)
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"\nError running py-spy: {e}", file=sys.stderr)
-        print("Note: On Linux, you might need to run this script with 'sudo' or set ptrace_scope.", file=sys.stderr)
+        # Run pyinstrument using subprocess.
+        subprocess.run(cmd, check=True)
+        print(f"\nProfiling complete! Interactive HTML flamegraph saved to: {output_file}")
+    except subprocess.CalledProcessError as e:
+        print(f"\nError running pyinstrument: {e}", file=sys.stderr)
+        sys.exit(e.returncode)
+    except FileNotFoundError:
+        print("\nError: Could not find 'uv'. Ensure it is installed and in your PATH.", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -38,6 +38,7 @@ dev = [
     "black",
     "pytest-benchmark",
     "memory-profiler",
+    "pyinstrument",
 ]
 
 [tool.setuptools.packages.find]
