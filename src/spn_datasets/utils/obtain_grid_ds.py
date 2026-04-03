@@ -78,7 +78,12 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
         m_idx = get_grid_index(len(data["arr_vlist"]), col_m)
         dir_counts[p_idx - 1, m_idx - 1] += 1
 
-        save_path = grid_dir / f"p{p_idx}" / f"m{m_idx}" / f"data{int(dir_counts[p_idx-1, m_idx-1])}.json"
+        save_path = (
+            grid_dir
+            / f"p{p_idx}"
+            / f"m{m_idx}"
+            / f"data{int(dir_counts[p_idx-1, m_idx-1])}.json"
+        )
         DU.save_data_to_json_file(save_path, data)
 
     grid_config["json_count"] = dir_counts.tolist()
@@ -97,7 +102,9 @@ def sample_and_transform_data(config):
     for i in range(num_place_bins):
         for j in range(num_marking_bins):
             directory_path = grid_data_loc / f"p{i+1}" / f"m{j+1}"
-            sampled_list = DU.sample_json_files_from_directory(config["samples_per_grid"], str(directory_path))
+            sampled_list = DU.sample_json_files_from_directory(
+                config["samples_per_grid"], str(directory_path)
+            )
             all_data.extend(sampled_list)
 
     transformed_data = []

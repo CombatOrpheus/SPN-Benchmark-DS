@@ -90,7 +90,7 @@ def count_json_files(directory_path):
     directory_path = Path(directory_path)
     json_files = sorted(
         [p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".json"],
-        key=lambda x: int(x.replace("data", "").replace(".json", "")),
+        key=lambda x: int(x.replace("data", "").replace(".json", ""))
     )
     return len(json_files), json_files
 
@@ -130,13 +130,14 @@ def get_all_txt_files_in_subdirectories(directory_path):
     """
     directory_path = Path(directory_path)
     subdirectories = sorted(
-        [d for d in directory_path.iterdir() if d.is_dir()], key=lambda x: int(x.name.replace("data", ""))
+        [d for d in directory_path.iterdir() if d.is_dir()],
+        key=lambda x: int(x.name.replace("data", ""))
     )
     all_txt_files = []
     for subdir in subdirectories:
         txt_files = sorted(
             [f for f in subdir.iterdir() if f.is_file() and f.suffix == ".txt"],
-            key=lambda x: int(x.stem.replace("data", "")),
+            key=lambda x: int(x.stem.replace("data", ""))
         )
         full_paths = [subdir / f.name for f in txt_files]
         all_txt_files.extend(full_paths)
@@ -182,7 +183,7 @@ def get_all_txt_files_in_directory(directory_path):
     directory_path = Path(directory_path)
     return sorted(
         [p.name for p in directory_path.iterdir() if p.is_file() and p.suffix == ".txt"],
-        key=lambda x: int(x.replace("data", "").replace(".txt", "")),
+        key=lambda x: int(x.replace("data", "").replace(".txt", ""))
     )
 
 

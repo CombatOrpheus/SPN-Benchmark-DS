@@ -100,7 +100,10 @@ def _bfs_core(
     visited_markings_list.append(initial_marking)
 
     # Explored markings are stored in a Numba Dict for fast lookups using a hash as a key
-    explored_markings_dict = Dict.empty(key_type=types.uint64, value_type=types.int64)
+    explored_markings_dict = Dict.empty(
+        key_type=types.uint64,
+        value_type=types.int64
+    )
     explored_markings_dict[fnv1a_hash(initial_marking)] = marking_index_counter
 
     # The processing queue for the BFS algorithm, using a circular queue
