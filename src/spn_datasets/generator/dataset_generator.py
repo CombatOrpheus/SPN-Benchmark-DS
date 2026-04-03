@@ -78,13 +78,9 @@ class DatasetGenerator:
         if not augmented_data:
             return []
 
-        max_transforms = self.config.get(
-            "maximum_transformations_per_sample", len(augmented_data)
-        )
+        max_transforms = self.config.get("maximum_transformations_per_sample", len(augmented_data))
         if len(augmented_data) > max_transforms:
-            indices = np.random.choice(
-                len(augmented_data), max_transforms, replace=False
-            )
+            indices = np.random.choice(len(augmented_data), max_transforms, replace=False)
             return [augmented_data[i] for i in indices]
         return augmented_data
 
@@ -108,8 +104,7 @@ class DatasetGenerator:
         if self.config.get("enable_transformations"):
             print("Augmenting samples...")
             augmented_lists = Parallel(n_jobs=n_jobs, backend="loky")(
-                delayed(self.augment_single_spn)(sample)
-                for sample in tqdm(valid_samples, desc="Augmenting")
+                delayed(self.augment_single_spn)(sample) for sample in tqdm(valid_samples, desc="Augmenting")
             )
             for sample_list in augmented_lists:
                 all_samples.extend(sample_list)

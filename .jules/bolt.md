@@ -13,3 +13,6 @@
 ## 2024-05-27 - Numba compute_qualitative_properties memory bottleneck and array operations
 **Learning:** Using `np.where` inside numba is highly inefficient because it allocates boolean arrays implicitly and requires garbage collection overhead, particularly when finding zero sum columns or pre/post connections.
 **Action:** Replace `np.where` operations in numba-compiled functions (like `delete_excess_edges` and `add_missing_connections` in `PetriGenerate.py`) with explicit for loops using pre-allocated empty tracking arrays and counters. This prevents memory allocations within the loop and reduces overhead.
+## 2025-04-03 - Python List and Built-in Random Overhead inside Numba
+**Learning:** Functions that rely heavily on native Python lists (`.append()`, `.pop()`) and standard library `random` functions (e.g., `random.choice`, `random.shuffle`) become immense performance bottlenecks when compiled with Numba or used inside hot loops. `generate_random_petri_net` previously suffered a >20x slowdown relative to its potential.
+**Action:** Always refactor algorithms to use pre-allocated NumPy arrays (`np.empty`, `np.zeros`) with explicit index tracking counters (e.g. `count += 1`), and replace `random` with `np.random` permutations/ints when optimizing tight graph construction logic with Numba.
