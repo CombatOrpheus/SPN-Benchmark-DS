@@ -1,8 +1,8 @@
-
 import unittest
 from unittest.mock import MagicMock, patch
 import numpy as np
 from spn_datasets.generator.dataset_generator import DatasetGenerator
+
 
 class TestDatasetGenerator(unittest.TestCase):
     def setUp(self):
@@ -48,7 +48,11 @@ class TestDatasetGenerator(unittest.TestCase):
         sample = {"petri_net": np.zeros((5, 11))}
 
         # Mock transformations
-        mock_dt.generate_petri_net_variations.return_value = [{"petri_net": "var1"}, {"petri_net": "var2"}, {"petri_net": "var3"}]
+        mock_dt.generate_petri_net_variations.return_value = [
+            {"petri_net": "var1"},
+            {"petri_net": "var2"},
+            {"petri_net": "var3"},
+        ]
 
         # Test with limit
         self.config["maximum_transformations_per_sample"] = 2
@@ -65,22 +69,12 @@ class TestDatasetGenerator(unittest.TestCase):
         results = self.generator.augment_single_spn(sample)
         self.assertEqual(len(results), 0)
 
-    @patch("spn_datasets.generator.dataset_generator.Parallel")
-    def test_generate_dataset(self, mock_parallel):
-        # mock_parallel(...) -> executor
-        # executor(...) -> results
-
-        executor_mock = MagicMock()
-        mock_parallel.return_value = executor_mock
-
-        # First call: initial samples
-        # Second call: augmented samples (if enabled)
-        # Note: augment_single_spn returns a LIST of samples.
-        # So Parallel returns a list of lists.
-        executor_mock.side_effect = [
-            [{"sample": 1}, {"sample": 2}], # Initial
-            [[{"aug": 1}], [{"aug": 2}]]    # Augmented
-        ]
+    @patch("spn_datasets.generator.dataset_generator.DatasetGenerator.generate_single_spn")
+    @patch("spn_datasets.generator.dataset_generator.DatasetGenerator.augment_single_spn")
+    def test_generate_dataset(self, mock_augment, mock_generate):
+        # We test with parallel_jobs=1 which goes through the new conditional code path
+        mock_generate.side_effect = [{"sample": 1}, {"sample": 2}]
+        mock_augment.side_effect = [[{"aug": 1}], [{"aug": 2}]]
 
         samples = self.generator.generate_dataset()
         self.assertEqual(len(samples), 2)
@@ -88,9 +82,7 @@ class TestDatasetGenerator(unittest.TestCase):
 
         # Test without transformations
         self.generator.config["enable_transformations"] = False
-        executor_mock.side_effect = [
-            [{"sample": 1}, {"sample": 2}]
-        ]
+        mock_generate.side_effect = [{"sample": 1}, {"sample": 2}]
         samples = self.generator.generate_dataset()
         self.assertEqual(len(samples), 2)
         self.assertEqual(samples, [{"sample": 1}, {"sample": 2}])

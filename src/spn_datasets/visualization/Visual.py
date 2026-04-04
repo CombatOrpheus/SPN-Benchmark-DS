@@ -168,8 +168,13 @@ def visualize_dataset(all_graph_data, output_dir, num_parallel_jobs):
         output_dir (str): The directory to save the images.
         num_parallel_jobs (int): The number of parallel jobs to run.
     """
-    Parallel(n_jobs=num_parallel_jobs)(
-        delayed(save_visualizations_for_instance)(graph_data, output_dir, i + 1)
-        for i, graph_data in enumerate(all_graph_data.values())
-    )
+    if num_parallel_jobs == 1:
+        # Bolt Optimization: Avoid Joblib overhead for sequential execution
+        for i, graph_data in enumerate(all_graph_data.values()):
+            save_visualizations_for_instance(graph_data, output_dir, i + 1)
+    else:
+        Parallel(n_jobs=num_parallel_jobs)(
+            delayed(save_visualizations_for_instance)(graph_data, output_dir, i + 1)
+            for i, graph_data in enumerate(all_graph_data.values())
+        )
     print("Image saving process initiated successfully!")

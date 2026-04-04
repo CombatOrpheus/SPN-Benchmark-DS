@@ -140,7 +140,7 @@ class SPNDataReader:
                 # Packed array field
                 ptr = hf[f"{key}_ptr"]
                 start = ptr[index]
-                end = ptr[index+1]
+                end = ptr[index + 1]
 
                 data_flat = hf[f"{key}_data"][start:end]
                 shape = hf[f"{key}_shapes"][index]
@@ -152,7 +152,7 @@ class SPNDataReader:
                 if ds.ndim > 0:
                     val = ds[index]
                     if isinstance(val, bytes):
-                        sample[key] = val.decode('utf-8')
+                        sample[key] = val.decode("utf-8")
                     else:
                         sample[key] = val
         return sample

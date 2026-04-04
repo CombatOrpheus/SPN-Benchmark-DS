@@ -141,9 +141,13 @@ def generate_petri_net_variations(petri_matrix, config):
     marks_lower = config.get("marks_lower_limit", 4)
     marks_upper = config.get("marks_upper_limit", 500)
 
-    results = Parallel(n_jobs=parallel_jobs)(
-        delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices
-    )
+    if parallel_jobs == 1:
+        # Bolt Optimization: Avoid Joblib overhead for sequential execution
+        results = [SPN.filter_spn(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices]
+    else:
+        results = Parallel(n_jobs=parallel_jobs)(
+            delayed(SPN.filter_spn)(matrix, place_bound, marks_lower, marks_upper) for matrix in candidate_matrices
+        )
     structural_variations = [res for res, success in results if success]
 
     all_augmented_data = []

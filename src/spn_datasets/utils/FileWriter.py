@@ -63,11 +63,11 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
         # Check if scalar (or 0-d array)
         is_scalar = False
         if isinstance(first_val, (int, float, bool, str, np.integer, np.floating, np.bool_)):
-             is_scalar = True
+            is_scalar = True
         elif isinstance(first_val, (list, np.ndarray)):
-             temp_arr = np.array(first_val)
-             if temp_arr.ndim == 0:
-                 is_scalar = True
+            temp_arr = np.array(first_val)
+            if temp_arr.ndim == 0:
+                is_scalar = True
 
         try:
             if is_scalar:
@@ -78,20 +78,13 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
 
                 # Use string dtype for object arrays containing strings
                 if np_values.dtype == object and len(np_values) > 0 and isinstance(np_values[0], str):
-                    dt = h5py.string_dtype(encoding='utf-8')
+                    dt = h5py.string_dtype(encoding="utf-8")
                     file_handle.create_dataset(
-                        key,
-                        data=np_values,
-                        dtype=dt,
-                        compression=compression,
-                        compression_opts=compression_opts
+                        key, data=np_values, dtype=dt, compression=compression, compression_opts=compression_opts
                     )
                 else:
                     file_handle.create_dataset(
-                        key,
-                        data=np_values,
-                        compression=compression,
-                        compression_opts=compression_opts
+                        key, data=np_values, compression=compression, compression_opts=compression_opts
                     )
             else:
                 # Store as packed arrays: data, shapes, ptr
@@ -113,18 +106,12 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
 
                 # Write data
                 file_handle.create_dataset(
-                    f"{key}_data",
-                    data=concatenated,
-                    compression=compression,
-                    compression_opts=compression_opts
+                    f"{key}_data", data=concatenated, compression=compression, compression_opts=compression_opts
                 )
 
                 # Write shapes
                 file_handle.create_dataset(
-                    f"{key}_shapes",
-                    data=np.array(shapes),
-                    compression=compression,
-                    compression_opts=compression_opts
+                    f"{key}_shapes", data=np.array(shapes), compression=compression, compression_opts=compression_opts
                 )
 
                 # Write pointers (start indices)
@@ -136,10 +123,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
                 np.cumsum(lengths, out=ptr[1:])
 
                 file_handle.create_dataset(
-                    f"{key}_ptr",
-                    data=ptr,
-                    compression=compression,
-                    compression_opts=compression_opts
+                    f"{key}_ptr", data=ptr, compression=compression, compression_opts=compression_opts
                 )
 
         except (TypeError, ValueError) as e:

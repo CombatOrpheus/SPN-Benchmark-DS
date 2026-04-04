@@ -131,9 +131,13 @@ def main():
     # Augment samples in parallel
     print("Starting data augmentation...")
     parallel_jobs = config.get("number_of_parallel_jobs", 1)
-    augmented_lists = Parallel(n_jobs=parallel_jobs)(
-        delayed(augment_sample)(sample, config) for sample in tqdm(input_samples, desc="Augmenting samples")
-    )
+    if parallel_jobs == 1:
+        # Bolt Optimization: Avoid Joblib overhead for sequential execution
+        augmented_lists = [augment_sample(sample, config) for sample in tqdm(input_samples, desc="Augmenting samples")]
+    else:
+        augmented_lists = Parallel(n_jobs=parallel_jobs)(
+            delayed(augment_sample)(sample, config) for sample in tqdm(input_samples, desc="Augmenting samples")
+        )
 
     # Flatten the list of lists
     all_augmented_samples = [item for sublist in augmented_lists for item in sublist]
