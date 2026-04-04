@@ -10,8 +10,8 @@ class ExcelTool:
         self.path = Path(path)
         # Ensure the file extension is .xlsx
         book_path = Path(book_name_xls)
-        if book_path.suffix != '.xlsx':
-            self.book_name_xls = book_path.with_suffix('.xlsx')
+        if book_path.suffix != ".xlsx":
+            self.book_name_xls = book_path.with_suffix(".xlsx")
         else:
             self.book_name_xls = book_path
         self.excel_loc = self.path / self.book_name_xls

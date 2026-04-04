@@ -78,13 +78,9 @@ class DatasetGenerator:
         if not augmented_data:
             return []
 
-        max_transforms = self.config.get(
-            "maximum_transformations_per_sample", len(augmented_data)
-        )
+        max_transforms = self.config.get("maximum_transformations_per_sample", len(augmented_data))
         if len(augmented_data) > max_transforms:
-            indices = np.random.choice(
-                len(augmented_data), max_transforms, replace=False
-            )
+            indices = np.random.choice(len(augmented_data), max_transforms, replace=False)
             return [augmented_data[i] for i in indices]
         return augmented_data
 
@@ -98,19 +94,25 @@ class DatasetGenerator:
         n_jobs = self.config["number_of_parallel_jobs"]
 
         print(f"Generating {num_samples} initial SPN samples...")
-        initial_samples = Parallel(n_jobs=n_jobs, backend="loky")(
-            delayed(self.generate_single_spn)() for _ in trange(num_samples)
-        )
+        if n_jobs == 1:
+            # Bolt Optimization: Avoid Joblib overhead for sequential execution
+            initial_samples = [self.generate_single_spn() for _ in trange(num_samples)]
+        else:
+            initial_samples = Parallel(n_jobs=n_jobs, backend="loky")(
+                delayed(self.generate_single_spn)() for _ in trange(num_samples)
+            )
         valid_samples = [s for s in initial_samples if s is not None]
         print(f"Generated {len(valid_samples)} valid initial samples.")
 
         all_samples = []
         if self.config.get("enable_transformations"):
             print("Augmenting samples...")
-            augmented_lists = Parallel(n_jobs=n_jobs, backend="loky")(
-                delayed(self.augment_single_spn)(sample)
-                for sample in tqdm(valid_samples, desc="Augmenting")
-            )
+            if n_jobs == 1:
+                augmented_lists = [self.augment_single_spn(sample) for sample in tqdm(valid_samples, desc="Augmenting")]
+            else:
+                augmented_lists = Parallel(n_jobs=n_jobs, backend="loky")(
+                    delayed(self.augment_single_spn)(sample) for sample in tqdm(valid_samples, desc="Augmenting")
+                )
             for sample_list in augmented_lists:
                 all_samples.extend(sample_list)
         else:

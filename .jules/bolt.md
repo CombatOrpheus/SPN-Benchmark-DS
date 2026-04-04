@@ -13,3 +13,6 @@
 ## 2024-05-27 - Numba compute_qualitative_properties memory bottleneck and array operations
 **Learning:** Using `np.where` inside numba is highly inefficient because it allocates boolean arrays implicitly and requires garbage collection overhead, particularly when finding zero sum columns or pre/post connections.
 **Action:** Replace `np.where` operations in numba-compiled functions (like `delete_excess_edges` and `add_missing_connections` in `PetriGenerate.py`) with explicit for loops using pre-allocated empty tracking arrays and counters. This prevents memory allocations within the loop and reduces overhead.
+## 2024-05-28 - Joblib Parallel list comprehension overhead
+**Learning:** Using `Parallel(n_jobs=1)` for simple sequential execution introduces significant overhead due to worker setup, making it up to 30x slower than a standard list comprehension for short operations.
+**Action:** Conditionally replace `Parallel(n_jobs=n_jobs)` calls with plain list comprehensions whenever `n_jobs == 1`. This safely bypasses Joblib's overhead while preserving parallel execution for higher core counts.
