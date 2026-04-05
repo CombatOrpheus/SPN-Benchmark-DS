@@ -67,23 +67,6 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
     return new_markings, enabled_transitions
 
 
-def _initialize_bfs(initial_marking):
-    """Initializes the data structures for the BFS algorithm."""
-    marking_index_counter = 0
-
-    # Use Numba-typed List and Dict for memory efficiency
-    visited_markings_list = List()
-    visited_markings_list.append(initial_marking)
-
-    explored_markings_dict = Dict.empty(key_type=types.int64, value_type=types.int64)
-    random_vector = np.random.randint(1, 1000, size=initial_marking.shape[0], dtype=np.int64)
-    explored_markings_dict[np.dot(initial_marking, random_vector)] = marking_index_counter
-
-    processing_queue = deque([marking_index_counter])
-
-    return marking_index_counter, visited_markings_list, explored_markings_dict, processing_queue
-
-
 @numba.jit(nopython=True, cache=True)
 def _bfs_core(
     initial_marking,
@@ -95,9 +78,11 @@ def _bfs_core(
     """Core BFS loop optimized with Numba."""
     marking_index_counter = 0
 
-    # Visited markings are stored in a Numba List for efficient access
-    visited_markings_list = List()
-    visited_markings_list.append(initial_marking)
+    # Visited markings are stored in a dense numpy array for efficient access
+    # Since we know max_markings_to_explore, we can pre-allocate
+    num_places = initial_marking.shape[0]
+    visited_markings_array = np.empty((max_markings_to_explore, num_places), dtype=np.int64)
+    visited_markings_array[0] = initial_marking
 
     # Explored markings are stored in a Numba Dict for fast lookups using a hash as a key
     explored_markings_dict = Dict.empty(key_type=types.uint64, value_type=types.int64)
@@ -109,17 +94,21 @@ def _bfs_core(
     head = 0
     tail = 1
 
+    num_transitions = pre_matrix.shape[1]
+
     # Data structures to store the graph
-    reachability_edges = List()
-    edge_transition_indices = List()
+    reachability_edges_src = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
+    reachability_edges_dst = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
+    edge_transition_indices = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
+    edge_count = 0
     is_bounded = True
 
     while head < tail:
         current_marking_index = queue[head]
         head += 1
-        current_marking = visited_markings_list[current_marking_index]
+        current_marking = visited_markings_array[current_marking_index]
 
-        if len(visited_markings_list) >= max_markings_to_explore:
+        if marking_index_counter >= max_markings_to_explore - 1:
             is_bounded = False
             break
 
@@ -151,26 +140,35 @@ def _bfs_core(
 
             if new_marking_hash not in explored_markings_dict:
                 marking_index_counter += 1
-                if marking_index_counter >= max_markings_to_explore:
-                    reachability_edges.append((current_marking_index, marking_index_counter))
-                    edge_transition_indices.append(enabled_transition_index)
+                visited_markings_array[marking_index_counter] = new_marking
+                explored_markings_dict[new_marking_hash] = marking_index_counter
+
+                if marking_index_counter >= max_markings_to_explore - 1:
+                    reachability_edges_src[edge_count] = current_marking_index
+                    reachability_edges_dst[edge_count] = marking_index_counter
+                    edge_transition_indices[edge_count] = enabled_transition_index
+                    edge_count += 1
                     is_bounded = False
                     break
 
-                visited_markings_list.append(new_marking)
-                explored_markings_dict[new_marking_hash] = marking_index_counter
                 queue[tail] = marking_index_counter
                 tail += 1
-                reachability_edges.append((current_marking_index, marking_index_counter))
+
+                reachability_edges_src[edge_count] = current_marking_index
+                reachability_edges_dst[edge_count] = marking_index_counter
+                edge_transition_indices[edge_count] = enabled_transition_index
+                edge_count += 1
             else:
                 existing_index = explored_markings_dict[new_marking_hash]
-                reachability_edges.append((current_marking_index, existing_index))
+                reachability_edges_src[edge_count] = current_marking_index
+                reachability_edges_dst[edge_count] = existing_index
+                edge_transition_indices[edge_count] = enabled_transition_index
+                edge_count += 1
 
-            edge_transition_indices.append(enabled_transition_index)
         if not is_bounded:
             break
 
-    return visited_markings_list, reachability_edges, edge_transition_indices, is_bounded
+    return visited_markings_array[:marking_index_counter+1], reachability_edges_src[:edge_count], reachability_edges_dst[:edge_count], edge_transition_indices[:edge_count], is_bounded
 
 
 def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
@@ -200,7 +198,7 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     initial_marking = np.array(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
-    visited_markings_list, reachability_edges, edge_transition_indices, is_bounded = _bfs_core(
+    visited_markings_list, reach_src, reach_dst, edge_transition_indices, is_bounded = _bfs_core(
         initial_marking,
         pre_matrix,
         change_matrix,
@@ -209,9 +207,12 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     )
 
     # Convert Numba Lists to Python lists for compatibility
-    py_visited_markings_list = [np.array(m) for m in visited_markings_list]
-    py_reachability_edges = [list(e) for e in reachability_edges]
-    py_edge_transition_indices = list(edge_transition_indices)
+    # Bolt Optimization: Convert directly avoiding Numba list iterator overhead.
+    # Numba list iterators are slow, returning raw elements is better.
+    # Actually list comprehension is fastest to unbox the Numba arrays
+    py_visited_markings_list = [v for v in visited_markings_list]
+    py_reachability_edges = [[reach_src[i], reach_dst[i]] for i in range(len(reach_src))]
+    py_edge_transition_indices = [t for t in edge_transition_indices]
 
     return (
         py_visited_markings_list,
