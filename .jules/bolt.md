@@ -16,3 +16,6 @@
 ## 2024-05-28 - Joblib Parallel list comprehension overhead
 **Learning:** Using `Parallel(n_jobs=1)` for simple sequential execution introduces significant overhead due to worker setup, making it up to 30x slower than a standard list comprehension for short operations.
 **Action:** Conditionally replace `Parallel(n_jobs=n_jobs)` calls with plain list comprehensions whenever `n_jobs == 1`. This safely bypasses Joblib's overhead while preserving parallel execution for higher core counts.
+## 2024-05-29 - Numba Typed List Memory Bottleneck
+**Learning:** Using `numba.typed.List` to dynamically collect items inside a JIT compiled loop causes an extreme performance bottleneck when those items are later converted back into native Python types (e.g. `[v for v in visited_markings_list]`). Extracting elements from Numba typed lists via iteration in Python is very slow because of unboxing overhead.
+**Action:** When the maximum size of the output is known (like `max_markings_to_explore` in BFS) or can be safely bounded, always pre-allocate dense numpy arrays (`np.empty(..., dtype=np.int64)`) instead of using Numba typed lists. Maintain an explicit count to track the actual size. Returning slices of these pre-allocated dense numpy arrays (e.g. `array[:count]`) avoids all unboxing overhead and runs exponentially faster in Python.

@@ -13,3 +13,7 @@ temp_configs/
 # Benchmark results
 *.csv
 *.png
+*.html
+profile*
+test_*
+run_*
