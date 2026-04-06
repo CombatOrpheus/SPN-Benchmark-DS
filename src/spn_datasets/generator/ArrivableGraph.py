@@ -168,7 +168,13 @@ def _bfs_core(
         if not is_bounded:
             break
 
-    return visited_markings_array[:marking_index_counter+1], reachability_edges_src[:edge_count], reachability_edges_dst[:edge_count], edge_transition_indices[:edge_count], is_bounded
+    return (
+        visited_markings_array[: marking_index_counter + 1],
+        reachability_edges_src[:edge_count],
+        reachability_edges_dst[:edge_count],
+        edge_transition_indices[:edge_count],
+        is_bounded,
+    )
 
 
 def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit=10, max_markings_to_explore=500):
