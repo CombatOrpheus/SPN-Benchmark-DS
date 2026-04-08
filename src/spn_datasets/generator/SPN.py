@@ -53,9 +53,9 @@ def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_v
 
 
 def compute_state_equation(
-    vertices: List[np.ndarray],
-    edges: List[List[int]],
-    arc_transitions: List[int],
+    vertices: np.ndarray,
+    edges: np.ndarray,
+    arc_transitions: np.ndarray,
     lambda_values: np.ndarray,
 ) -> Tuple[csc_array, np.ndarray]:
     """Computes the state equation for the SPN using sparse matrices.
@@ -73,7 +73,7 @@ def compute_state_equation(
     num_vertices = len(vertices)
 
     # Use Numba-optimized function for the core computation
-    edges_arr = np.array(edges, dtype=np.int32)
+    edges_arr = edges.astype(np.int32)
     if edges_arr.ndim == 1:
         # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
@@ -81,7 +81,7 @@ def compute_state_equation(
     data, rows, cols = _compute_state_equation_numba(
         num_vertices,
         edges_arr,
-        np.array(arc_transitions, dtype=np.int32),
+        arc_transitions.astype(np.int32),
         lambda_values,
     )
 
@@ -169,6 +169,13 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
         if istop not in (1, 2):
             return None
 
+        # spsolve might return a matrix if the inputs aren't perfectly aligned or
+        # in some error conditions. Make sure it's flattened.
+        if hasattr(probs, "toarray"):
+            probs = probs.toarray().flatten()
+        elif hasattr(probs, "flatten"):
+            probs = probs.flatten()
+
         # Normalize probabilities
         probs[probs < 0] = 0
         prob_sum = np.sum(probs)
@@ -185,10 +192,10 @@ def _run_sgn_task(
     vertices, edges, arc_transitions, transition_rates
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Helper to run a single SGN task."""
-    if not vertices:
+    if vertices.size == 0:
         return None, None, None, False
 
-    vertices_np = np.array(vertices, dtype=int)
+    vertices_np = vertices.astype(int)
     state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, transition_rates)
     steady_state_probs = solve_for_steady_state(state_matrix, target_vector)
 
@@ -200,9 +207,9 @@ def _run_sgn_task(
 
 
 def generate_stochastic_net_task(
-    vertices: List[np.ndarray],
-    edges: List[List[int]],
-    arc_transitions: List[int],
+    vertices: np.ndarray,
+    edges: np.ndarray,
+    arc_transitions: np.ndarray,
     num_transitions: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with random firing rates.
@@ -217,13 +224,13 @@ def generate_stochastic_net_task(
 
 
 def generate_stochastic_net_task_with_rates(
-    vertices: List[np.ndarray],
-    edges: List[List[int]],
-    arc_transitions: List[int],
+    vertices: np.ndarray,
+    edges: np.ndarray,
+    arc_transitions: np.ndarray,
     transition_rates: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with specified firing rates."""
-    return _run_sgn_task(vertices, edges, arc_transitions, np.array(transition_rates, dtype=float))
+    return _run_sgn_task(vertices, edges, arc_transitions, transition_rates.astype(float))
 
 
 @numba.jit(nopython=True, cache=True)
@@ -322,8 +329,8 @@ def is_connected(petri_net_matrix):
 
 
 def compute_qualitative_properties(
-    vertices: List[np.ndarray],
-    edges: List[List[int]],
+    vertices: np.ndarray,
+    edges: np.ndarray,
 ) -> Dict[str, Any]:
     """Computes qualitative properties of the SPN reachability graph.
 
@@ -333,7 +340,7 @@ def compute_qualitative_properties(
     - is_safe: True if the number of tokens in any place never exceeds 1.
     - max_tokens: The maximum number of tokens in any place across all reachable markings.
     """
-    if not vertices:
+    if vertices.size == 0:
         return {
             "is_deadlock_free": False,
             "is_reversible": False,
@@ -345,10 +352,10 @@ def compute_qualitative_properties(
 
     # Max tokens and Safeness: avoid creating large intermediate dense arrays
     # by calculating the maximum tokens iteratively across markings
-    max_tokens = int(max(np.max(v) for v in vertices))
+    max_tokens = int(np.max(vertices))
     is_safe = max_tokens <= 1
 
-    if not edges:
+    if edges.size == 0:
         # If there are vertices but no edges, and num_vertices > 0
         # If only 1 state (initial) and no edges, it's a deadlock unless no transitions exist.
         return {
@@ -359,7 +366,7 @@ def compute_qualitative_properties(
         }
 
     # Deadlock-free: Check if every node has an outgoing edge
-    sources = set(e[0] for e in edges)
+    sources = set(edges[:, 0])
     is_deadlock_free = len(sources) == num_vertices
 
     # Reversibility: Check if M0 (index 0) is reachable from all nodes
@@ -404,9 +411,9 @@ def _create_spn_result_dict(
     """Creates a dictionary for SPN results."""
     result = {
         "petri_net": petri_net_matrix,
-        "arr_vlist": np.array(vertices, dtype=int),
-        "arr_edge": np.array(edges, dtype=int) if edges else np.empty((0, 2), dtype=int),
-        "arr_tranidx": np.array(arc_transitions, dtype=int) if arc_transitions else np.empty((0,), dtype=int),
+        "arr_vlist": vertices.astype(int),
+        "arr_edge": edges.astype(int) if edges.size > 0 else np.empty((0, 2), dtype=int),
+        "arr_tranidx": arc_transitions.astype(int) if arc_transitions.size > 0 else np.empty((0,), dtype=int),
         "spn_labda": firing_rates,
         "spn_steadypro": steady_state_probs,
         "spn_markdens": marking_densities,
@@ -442,7 +449,7 @@ def filter_spn(
         is_bounded,
     ) = ArrGra.generate_reachability_graph(petri_net_matrix, place_upper_bound, marks_upper_limit)
 
-    if not is_bounded or not vertices or len(vertices) < marks_lower_limit:
+    if not is_bounded or vertices.size == 0 or len(vertices) < marks_lower_limit:
         return {}, False
 
     (
@@ -464,14 +471,14 @@ def filter_spn(
 
 def get_spn_info(
     petri_net_matrix: np.ndarray,
-    vertices: List[np.ndarray],
-    edges: List[List[int]],
-    arc_transitions: List[int],
+    vertices: np.ndarray,
+    edges: np.ndarray,
+    arc_transitions: np.ndarray,
     transition_rates: np.ndarray,
 ) -> Tuple[Dict[str, Any], bool]:
     """Retrieves SPN info for a given structure and rates."""
     petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
-    if not is_connected(petri_net_matrix) or not vertices:
+    if not is_connected(petri_net_matrix) or vertices.size == 0:
         return {}, False
 
     (
