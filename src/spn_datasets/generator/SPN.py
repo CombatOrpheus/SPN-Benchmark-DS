@@ -147,11 +147,14 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
     return marking_density_matrix, avg_tokens_per_place
 
 
+from scipy.sparse.linalg import lsqr
+
+
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
-    """Solves for steady-state probabilities using spsolve on a modified system."""
+    """Solves for steady-state probabilities using lsqr on a modified system."""
     num_vertices = state_matrix.shape[1]
 
-    # To use spsolve, we need a square matrix. We can achieve this by removing
+    # To solve, we need a square matrix. We can achieve this by removing
     # one of the redundant equations from the state matrix (the first `num_vertices` rows).
     # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
     A_sq = state_matrix[1:, :]
@@ -160,7 +163,11 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            probs = spsolve(A_sq, b_sq)
+            # lsqr is robust against singular/ill-conditioned matrices and doesn't crash Python
+            probs, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var = lsqr(A_sq, b_sq, atol=1e-5, btol=1e-5)
+
+        if istop not in (1, 2):
+            return None
 
         # spsolve might return a matrix if the inputs aren't perfectly aligned or
         # in some error conditions. Make sure it's flattened.
