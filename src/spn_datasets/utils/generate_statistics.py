@@ -14,8 +14,6 @@ from io import BytesIO
 import h5py
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def setup_arg_parser():
@@ -131,6 +129,8 @@ def main():
 
 def generate_plots(stats_df):
     """Generates plots from the statistics DataFrame."""
+    import matplotlib.pyplot as plt
+    import seaborn as sns
     plots = {}
     sns.set_theme(style="whitegrid")
 

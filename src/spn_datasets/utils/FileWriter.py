@@ -87,17 +87,18 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
                         key, data=np_values, compression=compression, compression_opts=compression_opts
                     )
             else:
-                # Store as packed arrays: data, shapes, ptr
+                # Optimized collection avoiding numpy conversion in Python loops where possible
                 flattened_data = []
                 shapes = []
                 lengths = []
 
-                for v in values:
+                for sample in samples_list:
+                    v = sample[key]
                     v_arr = np.array(v)
                     shapes.append(v_arr.shape)
-                    flat = v_arr.flatten()
+                    flat = v_arr.reshape(-1)
                     flattened_data.append(flat)
-                    lengths.append(len(flat))
+                    lengths.append(flat.size)
 
                 if flattened_data:
                     concatenated = np.concatenate(flattened_data)
@@ -116,7 +117,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
 
                 # Write pointers (start indices)
                 # ptr has length N+1
-                ptr = np.zeros(len(values) + 1, dtype=np.int64)
+                ptr = np.zeros(len(samples_list) + 1, dtype=np.int64)
                 # cumsum of lengths gives the end indices
                 # ptr[0] is 0
                 # ptr[1] is length of first element, etc.
