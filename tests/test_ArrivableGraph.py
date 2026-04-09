@@ -50,8 +50,8 @@ def test_generate_reachability_graph(simple_petri_net):
     assert len(t) == 1
     assert np.allclose(v[0], np.array([1, 0]))
     assert np.allclose(v[1], np.array([0, 1]))
-    assert e[0] == [0, 1]
-    assert t[0] == 0
+    assert e.tolist()[0] == [0, 1]
+    assert t.tolist()[0] == 0
 
 
 def test_generate_reachability_graph_unbounded():
@@ -96,4 +96,4 @@ def test_generate_reachability_graph_revisited_marking():
     assert len(v) == 2
     assert len(e) == 2
     assert len(t) == 2
-    assert e[1] == [1, 0]  # Should be a back edge
+    assert e.tolist()[1] == [1, 0]  # Should be a back edge

@@ -76,9 +76,9 @@ def _generate_rate_variations(base_variation, num_variations):
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
         s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
-            [v for v in base_variation["arr_vlist"]],
-            base_variation["arr_edge"].tolist(),
-            base_variation["arr_tranidx"].tolist(),
+            np.array(base_variation["arr_vlist"]),
+            np.array(base_variation["arr_edge"]),
+            np.array(base_variation["arr_tranidx"]),
             new_rates,
         )
 

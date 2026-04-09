@@ -130,8 +130,8 @@ def test_benchmark_is_connected(benchmark):
 
 
 def test_benchmark_compute_qualitative_properties(benchmark):
-    vertices = [np.random.randint(0, 5, size=(50,)).astype(np.int32) for _ in range(500)]
-    edges = [[i, (i + 1) % 500] for i in range(500)]
+    vertices = np.array([np.random.randint(0, 5, size=(50,)).astype(np.int32) for _ in range(500)])
+    edges = np.array([[i, (i + 1) % 500] for i in range(500)])
 
     def f():
         compute_qualitative_properties(vertices, edges)

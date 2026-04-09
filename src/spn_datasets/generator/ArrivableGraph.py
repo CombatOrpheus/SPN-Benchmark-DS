@@ -191,9 +191,9 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
 
     Returns:
         tuple: A tuple containing:
-            - list: The list of unique reachable markings (states).
-            - list: List of edges [from_marking_idx, to_marking_idx].
-            - list: List of transition indices corresponding to each edge.
+            - numpy.ndarray: The unique reachable markings (states).
+            - numpy.ndarray: Edges as [from_marking_idx, to_marking_idx].
+            - numpy.ndarray: Transition indices corresponding to each edge.
             - int: Number of transitions in the Petri net.
             - bool: Boolean indicating if the net is bounded.
     """
@@ -212,18 +212,12 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
         max_markings_to_explore,
     )
 
-    # Convert Numba arrays to Python lists for compatibility
-    # ⚡ Bolt Optimization: Use pure NumPy vectorized methods to unbox arrays
-    # into Python lists. `np.column_stack` combined with `.tolist()` runs up
-    # to 5x faster than list comprehensions over large flat arrays.
-    py_visited_markings_list = list(visited_markings_list)
-    py_reachability_edges = np.column_stack((reach_src, reach_dst)).tolist()
-    py_edge_transition_indices = edge_transition_indices.tolist()
+    reachability_edges = np.column_stack((reach_src, reach_dst))
 
     return (
-        py_visited_markings_list,
-        py_reachability_edges,
-        py_edge_transition_indices,
+        visited_markings_list,
+        reachability_edges,
+        edge_transition_indices,
         num_transitions,
         is_bounded,
     )
