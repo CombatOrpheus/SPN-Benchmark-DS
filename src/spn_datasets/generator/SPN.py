@@ -218,6 +218,9 @@ def generate_stochastic_net_task(
         A tuple with steady-state probabilities, mark density, average markings,
         firing rates, and a success flag.
     """
+    vertices = np.array(vertices)
+    edges = np.array(edges)
+    arc_transitions = np.array(arc_transitions)
     transition_rates = np.random.randint(1, 11, size=num_transitions).astype(float)
     probs, density, markings, success = _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
     return probs, density, markings, transition_rates, success
@@ -230,6 +233,10 @@ def generate_stochastic_net_task_with_rates(
     transition_rates: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with specified firing rates."""
+    vertices = np.array(vertices)
+    edges = np.array(edges)
+    arc_transitions = np.array(arc_transitions)
+    transition_rates = np.array(transition_rates)
     return _run_sgn_task(vertices, edges, arc_transitions, transition_rates.astype(float))
 
 
@@ -478,6 +485,10 @@ def get_spn_info(
 ) -> Tuple[Dict[str, Any], bool]:
     """Retrieves SPN info for a given structure and rates."""
     petri_net_matrix = np.array(petri_net_matrix)  # Ensure it's a numpy array
+    vertices = np.array(vertices)
+    edges = np.array(edges)
+    arc_transitions = np.array(arc_transitions)
+    transition_rates = np.array(transition_rates)
     if not is_connected(petri_net_matrix) or vertices.size == 0:
         return {}, False
 

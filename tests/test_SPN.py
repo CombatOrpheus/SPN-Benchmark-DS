@@ -52,9 +52,9 @@ def test_is_connected_single_place_no_transitions():
 
 def test_compute_state_equation():
     """Test the computation of the state equation."""
-    vertices = [np.array([1, 0]), np.array([0, 1])]
-    edges = [[0, 1]]
-    arc_transitions = [0]
+    vertices = np.array([np.array([1, 0]), np.array([0, 1])])
+    edges = np.array([[0, 1]])
+    arc_transitions = np.array([0])
     lambda_values = np.array([2.0])
     state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, lambda_values)
 
@@ -98,9 +98,9 @@ def test_compute_average_markings():
 
 def test_generate_stochastic_net_task():
     """Test the generation of a stochastic net task."""
-    vertices = [np.array([1, 0]), np.array([0, 1])]
-    edges = [[0, 1]]
-    arc_transitions = [0]
+    vertices = np.array([np.array([1, 0]), np.array([0, 1])])
+    edges = np.array([[0, 1]])
+    arc_transitions = np.array([0])
     num_transitions = 1
     _, _, markings, _, success = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
     assert success is True
@@ -140,8 +140,8 @@ def test_compute_state_equation_numba():
 
 def test_compute_qualitative_properties_simple_cycle():
     """Test qualitative properties on a simple cycle 0 <-> 1."""
-    vertices = [np.array([1, 0]), np.array([0, 1])]
-    edges = [[0, 1], [1, 0]]
+    vertices = np.array([np.array([1, 0]), np.array([0, 1])])
+    edges = np.array([[0, 1], [1, 0]])
     props = compute_qualitative_properties(vertices, edges)
 
     assert props["is_deadlock_free"] is True
@@ -152,8 +152,8 @@ def test_compute_qualitative_properties_simple_cycle():
 
 def test_compute_qualitative_properties_deadlock():
     """Test qualitative properties with a deadlock 0 -> 1 -> 2 (stuck)."""
-    vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]
-    edges = [[0, 1], [1, 2]]
+    vertices = np.array([np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])])
+    edges = np.array([[0, 1], [1, 2]])
     props = compute_qualitative_properties(vertices, edges)
 
     assert props["is_deadlock_free"] is False
@@ -163,8 +163,8 @@ def test_compute_qualitative_properties_deadlock():
 
 def test_compute_qualitative_properties_unsafe():
     """Test qualitative properties with unsafe marking."""
-    vertices = [np.array([1, 0]), np.array([0, 2])]
-    edges = [[0, 1], [1, 0]]
+    vertices = np.array([np.array([1, 0]), np.array([0, 2])])
+    edges = np.array([[0, 1], [1, 0]])
     props = compute_qualitative_properties(vertices, edges)
 
     assert props["is_safe"] is False
@@ -173,8 +173,8 @@ def test_compute_qualitative_properties_unsafe():
 
 def test_compute_qualitative_properties_no_edges():
     """Test qualitative properties with no edges (single state)."""
-    vertices = [np.array([1])]
-    edges = []
+    vertices = np.array([np.array([1])])
+    edges = np.empty((0, 2), dtype=int)
     props = compute_qualitative_properties(vertices, edges)
 
     # If only one state and no transitions, it's effectively a deadlock
@@ -189,8 +189,8 @@ def test_compute_qualitative_properties_disconnected_reachability():
     """Test reversibility with disconnected components (impossible in reachability from M0, but testing graph logic)."""
     # 0 -> 1, 2 (2 is unreachable from 0, but passed in vertices list)
     # This simulates a graph where not all nodes can reach back to 0.
-    vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]
-    edges = [[0, 1], [1, 0], [2, 2]]
+    vertices = np.array([np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])])
+    edges = np.array([[0, 1], [1, 0], [2, 2]])
 
     # In a real reachability graph generated from M0 (0), 2 wouldn't be there.
     # But if we pass it manually:
