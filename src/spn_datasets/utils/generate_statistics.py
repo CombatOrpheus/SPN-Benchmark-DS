@@ -131,6 +131,7 @@ def generate_plots(stats_df):
     """Generates plots from the statistics DataFrame."""
     import matplotlib.pyplot as plt
     import seaborn as sns
+
     plots = {}
     sns.set_theme(style="whitegrid")
 

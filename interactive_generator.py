@@ -7,7 +7,6 @@ files for each, and then executing the generation scripts sequentially.
 """
 
 from pathlib import Path
-import subprocess
 import toml
 import shutil
 from datetime import datetime
