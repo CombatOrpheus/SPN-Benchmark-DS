@@ -13,7 +13,6 @@ from io import BytesIO
 
 import h5py
 import numpy as np
-import pandas as pd
 
 
 def setup_arg_parser():
@@ -39,6 +38,9 @@ def setup_arg_parser():
 
 def load_data(filepath):
     """Loads data from HDF5 or JSONL and extracts key statistics."""
+    # ⚡ Bolt Optimization: Lazy load pandas to avoid heavy global import overhead during script startup
+    import pandas as pd
+
     filepath = Path(filepath)
     file_ext = filepath.suffix
     stats_list = []
@@ -177,6 +179,9 @@ def _plot_to_base64(plt_obj):
 
 def create_config_table(config):
     """Creates an HTML table from the configuration dictionary."""
+    # ⚡ Bolt Optimization: Lazy load pandas to avoid heavy global import overhead during script startup
+    import pandas as pd
+
     if not config:
         return "<p>No configuration data found.</p>"
 
