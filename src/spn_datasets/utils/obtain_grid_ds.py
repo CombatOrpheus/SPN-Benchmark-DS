@@ -6,7 +6,6 @@ packages the data for use with DGL.
 """
 
 from pathlib import Path
-import time
 import numpy as np
 import h5py
 from tqdm import tqdm

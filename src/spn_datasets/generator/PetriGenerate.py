@@ -2,7 +2,6 @@
 This module provides functions for generating and modifying Petri nets.
 """
 
-from random import choice
 import numpy as np
 import numba
 

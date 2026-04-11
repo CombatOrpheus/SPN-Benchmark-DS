@@ -6,14 +6,17 @@ This script generates Stochastic Petri Net (SPN) datasets and saves them to HDF5
 import argparse
 import json
 from pathlib import Path
-import subprocess
 import h5py
 from tqdm import tqdm
+import numpy as np
 
 from spn_datasets.generator.dataset_generator import DatasetGenerator
 from spn_datasets.utils import DataUtil as DU
 from spn_datasets.utils import FileWriter as FW
 from spn_datasets.utils import generate_statistics as gen_stats
+from spn_datasets.generator import PetriGenerate as PeGen
+from spn_datasets.generator import DataTransformation as DT
+from spn_datasets.generator import SPN
 
 
 def generate_single_spn(config):

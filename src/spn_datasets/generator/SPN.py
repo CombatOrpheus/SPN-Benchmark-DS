@@ -4,13 +4,12 @@ including computing state equations, calculating average markings, and
 generating SPN tasks.
 """
 
-from collections import deque
-from typing import List, Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any
 import warnings
 import numpy as np
 import numba
-from scipy.sparse import csc_array, coo_array, lil_matrix
-from scipy.sparse.linalg import spsolve, MatrixRankWarning
+from scipy.sparse import csc_array, coo_array
+from scipy.sparse.linalg import MatrixRankWarning, lsqr
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
@@ -147,13 +146,8 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
     return marking_density_matrix, avg_tokens_per_place
 
 
-from scipy.sparse.linalg import lsqr
-
-
 def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
     """Solves for steady-state probabilities using lsqr on a modified system."""
-    num_vertices = state_matrix.shape[1]
-
     # To solve, we need a square matrix. We can achieve this by removing
     # one of the redundant equations from the state matrix (the first `num_vertices` rows).
     # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
@@ -335,6 +329,72 @@ def is_connected(petri_net_matrix):
     return count == num_nodes
 
 
+@numba.jit(nopython=True, cache=True)
+def _compute_qualitative_properties_core(vertices: np.ndarray, edges: np.ndarray) -> Tuple[bool, bool, bool, int]:
+    """Core Numba-optimized logic for qualitative properties."""
+    num_vertices = len(vertices)
+
+    # Max tokens and Safeness
+    max_tokens = int(np.max(vertices))
+    is_safe = max_tokens <= 1
+
+    if len(edges) == 0:
+        return False, (num_vertices == 1), is_safe, max_tokens
+
+    # Deadlock-free
+    seen_sources = np.zeros(num_vertices, dtype=np.bool_)
+    for i in range(len(edges)):
+        seen_sources[edges[i, 0]] = True
+
+    is_deadlock_free = True
+    for i in range(num_vertices):
+        if not seen_sources[i]:
+            is_deadlock_free = False
+            break
+
+    # Reversibility: Flat adjacency list for transpose graph
+    edge_counts = np.zeros(num_vertices, dtype=np.int32)
+    for i in range(len(edges)):
+        edge_counts[edges[i, 1]] += 1
+
+    adj_t = np.empty(len(edges), dtype=np.int32)
+    adj_ptr = np.zeros(num_vertices + 1, dtype=np.int32)
+    for i in range(num_vertices):
+        adj_ptr[i + 1] = adj_ptr[i] + edge_counts[i]
+
+    current_idx = np.zeros(num_vertices, dtype=np.int32)
+    for i in range(len(edges)):
+        u = edges[i, 0]
+        v = edges[i, 1]
+        pos = adj_ptr[v] + current_idx[v]
+        adj_t[pos] = u
+        current_idx[v] += 1
+
+    # BFS using native arrays
+    visited = np.zeros(num_vertices, dtype=np.bool_)
+    queue = np.empty(num_vertices, dtype=np.int32)
+    visited[0] = True
+    queue[0] = 0
+    head = 0
+    tail = 1
+
+    while head < tail:
+        u = queue[head]
+        head += 1
+        start_idx = adj_ptr[u]
+        end_idx = adj_ptr[u + 1]
+        for i in range(start_idx, end_idx):
+            v = adj_t[i]
+            if not visited[v]:
+                visited[v] = True
+                queue[tail] = v
+                tail += 1
+
+    is_reversible = tail == num_vertices
+
+    return is_deadlock_free, is_reversible, is_safe, max_tokens
+
+
 def compute_qualitative_properties(
     vertices: np.ndarray,
     edges: np.ndarray,
@@ -355,52 +415,18 @@ def compute_qualitative_properties(
             "max_tokens": 0,
         }
 
-    num_vertices = len(vertices)
+    # Ensure types for Numba signature match
+    edges_arr = edges.astype(np.int32) if edges.dtype != np.int32 else edges
+    vertices_arr = vertices.astype(np.int32) if vertices.dtype != np.int32 else vertices
 
-    # Max tokens and Safeness: avoid creating large intermediate dense arrays
-    # by calculating the maximum tokens iteratively across markings
-    max_tokens = int(np.max(vertices))
-    is_safe = max_tokens <= 1
-
-    if edges.size == 0:
-        # If there are vertices but no edges, and num_vertices > 0
-        # If only 1 state (initial) and no edges, it's a deadlock unless no transitions exist.
-        return {
-            "is_deadlock_free": False,
-            "is_reversible": True if num_vertices == 1 else False,
-            "is_safe": is_safe,
-            "max_tokens": max_tokens,
-        }
-
-    # Deadlock-free: Check if every node has an outgoing edge
-    sources = set(edges[:, 0])
-    is_deadlock_free = len(sources) == num_vertices
-
-    # Reversibility: Check if M0 (index 0) is reachable from all nodes
-    # We do a BFS on the transpose graph starting from 0.
-    adj_t = [[] for _ in range(num_vertices)]
-    for u, v in edges:
-        adj_t[v].append(u)
-
-    visited = [False] * num_vertices
-    queue = deque([0])
-    visited[0] = True
-    count = 1  # visited 0
-
-    while queue:
-        u = queue.popleft()
-        for v in adj_t[u]:
-            if not visited[v]:
-                visited[v] = True
-                queue.append(v)
-                count += 1
-
-    is_reversible = count == num_vertices
+    # ⚡ Bolt Optimization: Replace Python `set()` and `deque` based property calculations
+    # with a Numba compiled core function that uses flat adjacency arrays and integer queues.
+    is_deadlock_free, is_reversible, is_safe, max_tokens = _compute_qualitative_properties_core(vertices_arr, edges_arr)
 
     return {
-        "is_deadlock_free": is_deadlock_free,
-        "is_reversible": is_reversible,
-        "is_safe": is_safe,
+        "is_deadlock_free": bool(is_deadlock_free),
+        "is_reversible": bool(is_reversible),
+        "is_safe": bool(is_safe),
         "max_tokens": max_tokens,
     }
 

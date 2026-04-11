@@ -314,6 +314,7 @@ def partition_datasets(json_data_directory, node_feature_num, test_ratio=0.2):
     all_data = load_json_file(all_data_path)
 
     from sklearn.model_selection import train_test_split
+
     train_data, test_data = train_test_split(list(all_data.values()), test_size=test_ratio, random_state=0)
 
     train_data_dict = create_data_dictionary(train_data)

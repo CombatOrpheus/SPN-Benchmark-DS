@@ -3,11 +3,10 @@ Generates the reachability graph for a given Petri net definition
 using Breadth-First Search (BFS) and optimized marking lookup.
 """
 
-from collections import deque
 import numpy as np
 import numba
 from numba.core import types
-from numba.typed import Dict, List
+from numba.typed import Dict
 
 
 @numba.jit(nopython=True, cache=True)
