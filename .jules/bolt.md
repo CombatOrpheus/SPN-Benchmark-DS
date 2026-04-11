@@ -5,3 +5,7 @@
 ## 2024-04-10 - [Graph Property Calculation Overhead in Reachability Generators]
 **Learning:** Computing qualitative graph properties (like deadlock-freedom and reversibility) inside Python functions using high-level structures like `set()`, list comprehensions `[[] for _ in range(N)]`, and `collections.deque` causes severe performance bottlenecks when analyzed over thousands of small subgraphs.
 **Action:** When extracting properties from reachability graph edges, use `numba.jit(nopython=True)` along with flat pre-allocated numpy arrays (`np.empty(..., dtype=np.int32)`) to build adjacency tracking and BFS queues manually instead of relying on slow Python objects.
+
+## 2024-05-18 - [Heavy Top-Level Imports Bottleneck (Pandas)]
+**Learning:** Adding to previous learnings about `sklearn` and `matplotlib`, `pandas` is another large dependency that causes severe module-load performance penalties when imported at the top of a file. In this codebase, it was imported globally in `generate_statistics.py`, which is loaded by the main entrypoint `SPNGenerate.py`, slowing down even simple commands like `--help`.
+**Action:** Always load heavy dependencies like `pandas` lazily inside the specific functions (e.g., `load_data`, `create_config_table`) rather than globally to improve startup speed.
