@@ -13,7 +13,7 @@ import numpy as np
 from spn_datasets.generator.dataset_generator import DatasetGenerator
 from spn_datasets.utils import DataUtil as DU
 from spn_datasets.utils import FileWriter as FW
-from spn_datasets.utils import generate_statistics as gen_stats
+
 from spn_datasets.generator import PetriGenerate as PeGen
 from spn_datasets.generator import DataTransformation as DT
 from spn_datasets.generator import SPN
@@ -170,6 +170,8 @@ def run_generation_from_config(config):
         print("Generating statistical report...")
         report_output_path = output_path.with_suffix(".html")
         try:
+            from spn_datasets.utils import generate_statistics as gen_stats
+
             stats_df, report_config = gen_stats.load_data(output_path)
             if not stats_df.empty:
                 plots = gen_stats.generate_plots(stats_df)
