@@ -4,8 +4,11 @@ with open("tests/test_SPN.py", "r") as f:
     content = f.read()
 
 # Replace list definitions with np.array
-content = re.sub(r'vertices = \[np\.array\(\[.*?\]\)(?:, np\.array\(\[.*?\]\))*\]',
-                 lambda m: "vertices = np.array(" + m.group(0)[11:] + ")", content)
+content = re.sub(
+    r"vertices = \[np\.array\(\[.*?\]\)(?:, np\.array\(\[.*?\]\))*\]",
+    lambda m: "vertices = np.array(" + m.group(0)[11:] + ")",
+    content,
+)
 
 content = content.replace("edges = [[0, 1]]", "edges = np.array([[0, 1]])")
 content = content.replace("edges = [[0, 1], [1, 0]]", "edges = np.array([[0, 1], [1, 0]])")
@@ -18,7 +21,10 @@ content = content.replace("edges = []", "edges = np.empty((0, 2), dtype=int)")
 
 # Fix vertices lines specifically since regex might be hard
 content = content.replace("vertices = [np.array([1, 0]), np.array([0, 1])]", "vertices = np.array([[1, 0], [0, 1]])")
-content = content.replace("vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]", "vertices = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])")
+content = content.replace(
+    "vertices = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]",
+    "vertices = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])",
+)
 content = content.replace("vertices = [np.array([2, 0]), np.array([0, 2])]", "vertices = np.array([[2, 0], [0, 2]])")
 content = content.replace("vertices = [np.array([1])]", "vertices = np.array([[1]])")
 
