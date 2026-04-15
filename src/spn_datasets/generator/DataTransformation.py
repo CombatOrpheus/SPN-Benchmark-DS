@@ -47,7 +47,7 @@ def _generate_candidate_matrices(base_petri_matrix, config):
             candidate_matrices.append(modified_matrix)
 
     # Delete a token
-    if config.get("enable_delete_token", False) and np.sum(base_petri_matrix[:, -1]) > 1:
+    if config.get("enable_delete_token", False) and base_petri_matrix[:, -1].sum() > 1:
         rows = np.nonzero(base_petri_matrix[:, -1])[0]
         for r in rows:
             modified_matrix = base_petri_matrix.copy()
@@ -92,7 +92,7 @@ def _generate_rate_variations(base_variation, num_variations):
                 "spn_steadypro": s_probs,
                 "spn_markdens": m_dens,
                 "spn_allmus": avg_marks,
-                "spn_mu": np.sum(avg_marks),
+                "spn_mu": avg_marks.sum(),
             }
             rate_variations.append(new_result)
     return rate_variations

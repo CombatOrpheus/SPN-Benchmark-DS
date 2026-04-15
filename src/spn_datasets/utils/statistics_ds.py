@@ -91,7 +91,7 @@ def main():
 
     save_statistics_to_excel(save_dir, dataset_name, row_boundaries, col_boundaries, total_distribution)
 
-    print(f"Total number of data points: {np.sum(total_distribution)}")
+    print(f"Total number of data points: {total_distribution.sum()}")
 
 
 if __name__ == "__main__":
