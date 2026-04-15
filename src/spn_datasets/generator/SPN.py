@@ -124,7 +124,7 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
             present_tokens[val] = True
 
     # Map the observed tokens to dense indices for the density matrix
-    num_unique_tokens = np.sum(present_tokens)
+    num_unique_tokens = present_tokens.sum()
     token_to_idx = np.full(max_token + 1, -1, dtype=np.int32)
 
     idx = 0
@@ -172,7 +172,7 @@ def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -
 
         # Normalize probabilities
         probs[probs < 0] = 0
-        prob_sum = np.sum(probs)
+        prob_sum = probs.sum()
         if prob_sum > 1e-9:
             return probs / prob_sum
 
@@ -451,7 +451,7 @@ def _create_spn_result_dict(
         "spn_steadypro": steady_state_probs,
         "spn_markdens": marking_densities,
         "spn_allmus": average_markings,
-        "spn_mu": np.sum(average_markings),
+        "spn_mu": float(average_markings.sum()),
     }
 
     qual_props = compute_qualitative_properties(vertices, edges)
@@ -493,7 +493,7 @@ def filter_spn(
         success,
     ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
 
-    if not success or np.sum(markings) > 1000 or np.sum(markings) < -1000:
+    if not success or markings.sum() > 1000 or markings.sum() < -1000:
         return {}, False
 
     return (

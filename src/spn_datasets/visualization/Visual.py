@@ -91,7 +91,7 @@ def _format_metrics_label(steady_state_vector, token_density, avg_token_count):
         f"\\nSteady State Probability:\\n{np.array(steady_state_vector)}\\n"
         f"Token Probability Density Function:\\n{np.array(token_density)}\\n"
         f"Average Number of Tokens in Places:\\n{np.array(avg_token_count)}\\n"
-        f"Sum of Average Tokens:\\n{np.sum(avg_token_count):.4f}"
+        f"Sum of Average Tokens:\\n{np.asarray(avg_token_count).sum():.4f}"
     )
 
 
