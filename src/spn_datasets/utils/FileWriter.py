@@ -103,7 +103,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
                 if flattened_data:
                     concatenated = np.concatenate(flattened_data)
                 else:
-                    concatenated = np.array([])
+                    concatenated = np.asarray([])
 
                 # Write data
                 file_handle.create_dataset(
