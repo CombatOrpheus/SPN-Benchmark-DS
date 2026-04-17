@@ -196,11 +196,11 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
             - int: Number of transitions in the Petri net.
             - bool: Boolean indicating if the net is bounded.
     """
-    incidence_matrix = np.array(incidence_matrix_with_initial)
+    incidence_matrix = np.asarray(incidence_matrix_with_initial)
     num_transitions = incidence_matrix.shape[1] // 2
     pre_matrix = incidence_matrix[:, :num_transitions]
     post_matrix = incidence_matrix[:, num_transitions:-1]
-    initial_marking = np.array(incidence_matrix[:, -1], dtype=np.int64)
+    initial_marking = np.asarray(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
     visited_markings_list, reach_src, reach_dst, edge_transition_indices, is_bounded = _bfs_core(

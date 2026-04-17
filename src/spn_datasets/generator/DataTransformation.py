@@ -76,9 +76,9 @@ def _generate_rate_variations(base_variation, num_variations):
     for _ in range(num_variations):
         new_rates = np.random.randint(1, 11, size=num_trans).astype(float)
         s_probs, m_dens, avg_marks, success = SPN.generate_stochastic_net_task_with_rates(
-            np.array(base_variation["arr_vlist"]),
-            np.array(base_variation["arr_edge"]),
-            np.array(base_variation["arr_tranidx"]),
+            np.asarray(base_variation["arr_vlist"]),
+            np.asarray(base_variation["arr_edge"]),
+            np.asarray(base_variation["arr_tranidx"]),
             new_rates,
         )
 
@@ -108,7 +108,7 @@ def generate_petri_net_variations(petri_matrix, config):
     Returns:
         list: A list of dictionaries, each representing an augmented Petri net.
     """
-    base_petri_matrix = np.array(petri_matrix)
+    base_petri_matrix = np.asarray(petri_matrix)
     candidate_matrices = _generate_candidate_matrices(base_petri_matrix, config)
 
     # Limit the number of candidates to avoid excessive computation

@@ -5,3 +5,7 @@
 ## 2024-04-10 - [Graph Property Calculation Overhead in Reachability Generators]
 **Learning:** Computing qualitative graph properties (like deadlock-freedom and reversibility) inside Python functions using high-level structures like `set()`, list comprehensions `[[] for _ in range(N)]`, and `collections.deque` causes severe performance bottlenecks when analyzed over thousands of small subgraphs.
 **Action:** When extracting properties from reachability graph edges, use `numba.jit(nopython=True)` along with flat pre-allocated numpy arrays (`np.empty(..., dtype=np.int32)`) to build adjacency tracking and BFS queues manually instead of relying on slow Python objects.
+
+## 2024-04-16 - [Replacing np.array with np.asarray for Performance]
+**Learning:** `numpy.array()` creates a full copy of the array if the input is already a NumPy array, leading to significant overhead inside performance-critical paths (e.g., inside generator loops like SPN generation). `numpy.asarray()` acts as a pass-through if the input is already a NumPy array, avoiding the unnecessary copy while still ensuring the input is wrapped properly.
+**Action:** Always prefer `np.asarray()` over `np.array()` in functions that convert sequence arguments to numpy arrays if the input might already be an array, particularly in tight loops or data generators.
