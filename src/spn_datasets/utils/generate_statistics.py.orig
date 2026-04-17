@@ -74,8 +74,6 @@ def load_data(filepath):
 
                 for line in f:
                     sample = json.loads(line)
-                    # ⚡ Bolt Optimization: Use native Python `len()` on lists instead of casting
-                    # to `np.array` just to check `.shape`. Avoids massive O(N) allocation overhead.
                     petri_net = sample["petri_net"]
                     arr_vlist = sample["arr_vlist"]
                     stats_list.append(
