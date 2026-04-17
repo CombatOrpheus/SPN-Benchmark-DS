@@ -9,3 +9,7 @@
 ## 2024-04-16 - [Replacing np.array with np.asarray for Performance]
 **Learning:** `numpy.array()` creates a full copy of the array if the input is already a NumPy array, leading to significant overhead inside performance-critical paths (e.g., inside generator loops like SPN generation). `numpy.asarray()` acts as a pass-through if the input is already a NumPy array, avoiding the unnecessary copy while still ensuring the input is wrapped properly.
 **Action:** Always prefer `np.asarray()` over `np.array()` in functions that convert sequence arguments to numpy arrays if the input might already be an array, particularly in tight loops or data generators.
+
+## 2024-05-18 - [JSON Array Shape Parsing Overhead]
+**Learning:** Extracting dimensions from parsed JSON arrays or large nested Python lists by casting them to NumPy arrays (`np.array()`) solely to use `.shape` is highly inefficient. It causes severe O(N) memory allocation and copying overhead.
+**Action:** Use native Python `len()` on the lists directly to get the dimensions without triggering any copying or intermediate array allocations.
