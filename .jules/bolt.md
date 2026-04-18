@@ -9,3 +9,6 @@
 ## 2024-04-16 - [Replacing np.array with np.asarray for Performance]
 **Learning:** `numpy.array()` creates a full copy of the array if the input is already a NumPy array, leading to significant overhead inside performance-critical paths (e.g., inside generator loops like SPN generation). `numpy.asarray()` acts as a pass-through if the input is already a NumPy array, avoiding the unnecessary copy while still ensuring the input is wrapped properly.
 **Action:** Always prefer `np.asarray()` over `np.array()` in functions that convert sequence arguments to numpy arrays if the input might already be an array, particularly in tight loops or data generators.
+## 2024-10-24 - [Lazy Load Heavy Modules]
+**Learning:** Loading heavy dependencies like `pandas`, `matplotlib`, and `seaborn` at the top level causes significant module-load performance penalties and slows down CLI script execution time unnecessarily when they are only used in specific functions.
+**Action:** Always load them lazily by placing the `import` statements inside the specific functions (e.g., `generate_plots`, `create_config_table`, `load_data`) rather than at the top level of scripts.
