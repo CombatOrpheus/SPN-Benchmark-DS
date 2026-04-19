@@ -9,3 +9,6 @@
 ## 2024-04-16 - [Replacing np.array with np.asarray for Performance]
 **Learning:** `numpy.array()` creates a full copy of the array if the input is already a NumPy array, leading to significant overhead inside performance-critical paths (e.g., inside generator loops like SPN generation). `numpy.asarray()` acts as a pass-through if the input is already a NumPy array, avoiding the unnecessary copy while still ensuring the input is wrapped properly.
 **Action:** Always prefer `np.asarray()` over `np.array()` in functions that convert sequence arguments to numpy arrays if the input might already be an array, particularly in tight loops or data generators.
+## 2026-04-19 - [Lazy Array Duplication]
+**Learning:** [When generating permutations or augmentations of large data structures (like Petri net candidate matrices), eager copying of the arrays before sampling triggers extreme GC and memory overhead. Creating thousands of array copies just to discard 90% of them with `np.random.choice` destroys performance.]
+**Action:** [Instead of eagerly generating the complete matrices for all possible mutations, collect lightweight "operation" tuples (e.g., `("add_edge", row, col)`). Sample the operations down to the desired limit (`max_candidates`), and only apply the matrix mutations to the selected subset.]
