@@ -12,3 +12,7 @@
 ## 2026-04-19 - [Lazy Array Duplication]
 **Learning:** [When generating permutations or augmentations of large data structures (like Petri net candidate matrices), eager copying of the arrays before sampling triggers extreme GC and memory overhead. Creating thousands of array copies just to discard 90% of them with `np.random.choice` destroys performance.]
 **Action:** [Instead of eagerly generating the complete matrices for all possible mutations, collect lightweight "operation" tuples (e.g., `("add_edge", row, col)`). Sample the operations down to the desired limit (`max_candidates`), and only apply the matrix mutations to the selected subset.]
+
+## 2024-04-20 - [Avoiding np.array for Shape Extraction]
+**Learning:** Using `np.array()` on large nested lists (like parsed JSON representations of matrices) solely to access `.shape` attributes triggers massive unnecessary memory allocation, deep copying, and garbage collection overhead, converting an $O(1)$ dimension check into a slow $O(N)$ operation per item.
+**Action:** When extracting dimensions or counts from pure Python lists or parsed JSON structures, use the native `len()` function on the nested lists directly (e.g., `len(data)` for rows and `len(data[0])` for columns) instead of casting to NumPy arrays.
