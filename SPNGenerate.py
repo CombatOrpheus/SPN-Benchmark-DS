@@ -65,7 +65,7 @@ def augment_single_spn(sample, config):
     if not sample or "petri_net" not in sample:
         return []
 
-    petri_net = np.array(sample["petri_net"], dtype="long")
+    petri_net = np.asarray(sample["petri_net"], dtype="long")
     augmented_data = DT.generate_petri_net_variations(petri_net, config)
 
     if not augmented_data:

@@ -15,7 +15,7 @@ def write_to_hdf5(group, data, compression="gzip", compression_opts=4):
     """Writes a sample to an HDF5 group."""
     for key, value in data.items():
         try:
-            np_value = np.array(value)
+            np_value = np.asarray(value)
             d_shape = np_value.shape
             d_type = np_value.dtype
 
@@ -65,7 +65,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
         if isinstance(first_val, (int, float, bool, str, np.integer, np.floating, np.bool_)):
             is_scalar = True
         elif isinstance(first_val, (list, np.ndarray)):
-            temp_arr = np.array(first_val)
+            temp_arr = np.asarray(first_val)
             if temp_arr.ndim == 0:
                 is_scalar = True
 
@@ -74,7 +74,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
                 # Store as a single dataset
                 # Handle strings specially if needed, but h5py handles np.array of strings mostly
                 # Convert to numpy array to ensure consistent dtype
-                np_values = np.array(values)
+                np_values = np.asarray(values)
 
                 # Use string dtype for object arrays containing strings
                 if np_values.dtype == object and len(np_values) > 0 and isinstance(np_values[0], str):
@@ -94,7 +94,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
 
                 for sample in samples_list:
                     v = sample[key]
-                    v_arr = np.array(v)
+                    v_arr = np.asarray(v)
                     shapes.append(v_arr.shape)
                     flat = v_arr.reshape(-1)
                     flattened_data.append(flat)
@@ -112,7 +112,7 @@ def write_packed_hdf5(file_handle, samples_list, compression="gzip", compression
 
                 # Write shapes
                 file_handle.create_dataset(
-                    f"{key}_shapes", data=np.array(shapes), compression=compression, compression_opts=compression_opts
+                    f"{key}_shapes", data=np.asarray(shapes), compression=compression, compression_opts=compression_opts
                 )
 
                 # Write pointers (start indices)
