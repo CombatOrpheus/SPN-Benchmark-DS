@@ -73,12 +73,20 @@ def load_data(filepath):
 
                 for line in f:
                     sample = json.loads(line)
-                    petri_net = np.array(sample["petri_net"])
-                    arr_vlist = np.array(sample["arr_vlist"])
+                    petri_net = sample["petri_net"]
+                    arr_vlist = sample["arr_vlist"]
+
+                    # ⚡ Bolt Optimization: Avoiding np.array() for extracting matrix shapes.
+                    # Instead of parsing the massive nested JSON structure into dense NumPy arrays
+                    # just to access `.shape`, we use native Python `len()` to avoid extreme O(N)
+                    # memory allocation, array copying, and GC overhead.
+                    places = len(petri_net)
+                    transitions = (len(petri_net[0]) - 1) // 2 if places > 0 and petri_net[0] else 0
+
                     stats_list.append(
                         {
-                            "places": petri_net.shape[0],
-                            "transitions": (petri_net.shape[1] - 1) // 2,
+                            "places": places,
+                            "transitions": transitions,
                             "states": len(arr_vlist),
                         }
                     )
