@@ -67,7 +67,7 @@ def partition_data_into_grid(grid_dir, accumulate_data, raw_data_path, config):
     grid_config = _initialize_grid(grid_dir, accumulate_data, config)
     row_p = grid_config["row_p"]
     col_m = grid_config["col_m"]
-    dir_counts = np.array(grid_config["json_count"])
+    dir_counts = np.asarray(grid_config["json_count"])
 
     # Load data from the JSONL file, which returns a generator
     all_data_generator = DU.load_jsonl_file(raw_data_path)

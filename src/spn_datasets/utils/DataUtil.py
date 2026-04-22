@@ -207,7 +207,7 @@ def add_preprocessed_to_dict(node_feature_num, key, value, preprocessed_dict):
     arrivable_dict["node_f"] = node_unit
     arrivable_dict["edge_index"] = value["arr_edge"]
 
-    spn_lambda = np.array(value["spn_labda"])
+    spn_lambda = np.asarray(value["spn_labda"])
     arr_tran_idx = [int(pa) for pa in value["arr_tranidx"]]
     arrivable_dict["edge_f"] = spn_lambda[arr_tran_idx].tolist()
 

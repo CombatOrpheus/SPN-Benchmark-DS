@@ -45,7 +45,7 @@ def plot_petri_net(petri_net_matrix, output_filepath):
         output_filepath (str): The path to save the output PNG file.
     """
     graph = Digraph()
-    matrix = np.array(petri_net_matrix, dtype=int)
+    matrix = np.asarray(petri_net_matrix, dtype=int)
     num_transitions = (matrix.shape[1] - 1) // 2
 
     _create_place_nodes(graph, matrix)
@@ -88,9 +88,9 @@ def plot_reachability_graph(vertices, edges, arc_transitions, output_filepath):
 def _format_metrics_label(steady_state_vector, token_density, avg_token_count):
     """Formats the metrics label for the SPN plot."""
     return (
-        f"\\nSteady State Probability:\\n{np.array(steady_state_vector)}\\n"
-        f"Token Probability Density Function:\\n{np.array(token_density)}\\n"
-        f"Average Number of Tokens in Places:\\n{np.array(avg_token_count)}\\n"
+        f"\\nSteady State Probability:\\n{np.asarray(steady_state_vector)}\\n"
+        f"Token Probability Density Function:\\n{np.asarray(token_density)}\\n"
+        f"Average Number of Tokens in Places:\\n{np.asarray(avg_token_count)}\\n"
         f"Sum of Average Tokens:\\n{np.asarray(avg_token_count).sum():.4f}"
     )
 
