@@ -16,3 +16,11 @@
 ## 2024-04-20 - [Avoiding np.array for Shape Extraction]
 **Learning:** Using `np.array()` on large nested lists (like parsed JSON representations of matrices) solely to access `.shape` attributes triggers massive unnecessary memory allocation, deep copying, and garbage collection overhead, converting an $O(1)$ dimension check into a slow $O(N)$ operation per item.
 **Action:** When extracting dimensions or counts from pure Python lists or parsed JSON structures, use the native `len()` function on the nested lists directly (e.g., `len(data)` for rows and `len(data[0])` for columns) instead of casting to NumPy arrays.
+
+## 2024-04-25 - [Direct Sparse Matrix Construction in Numba]
+**Learning:** Creating COO sparse matrices (`scipy.sparse.coo_array`) from Numba-generated arrays and immediately calling `.tocsc()` or `.tocsr()`, followed by Python-level array slicing (`state_matrix[1:, :]`), incurs substantial overhead due to matrix reallocations and index sorting in Python.
+**Action:** When building sparse matrices for state equations (e.g., in `src/spn_datasets/generator/SPN.py`), avoid intermediate dense numpy arrays and Python-level format conversions. Instead, compute row offsets manually and generate `indices`, `indptr`, and `data` arrays using Numba, and construct a square `scipy.sparse.csr_array` directly to prevent memory bottlenecks and `.tocsc()` conversion overhead.
+
+## 2024-04-25 - [Numba Type Mismatch Recompilation]
+**Learning:** If a Numba JIT function (`@numba.jit(cache=True)`) is repeatedly called with numpy arrays of varying types (e.g. `np.int64` vs `np.int32` depending on the platform or generation method), Numba will spend significant time recompiling the function for the new signature during runtime.
+**Action:** To prevent Numba recompilation overhead on every unique array type signature (especially during batch generation), ensure inputs like `vertices`, `edges`, and `arc_transitions` are explicitly and consistently typed (e.g., using `np.asarray(..., dtype=np.int32)` or `np.float64`) before being passed to `@numba.jit` functions.

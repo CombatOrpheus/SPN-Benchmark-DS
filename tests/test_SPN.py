@@ -58,14 +58,18 @@ def test_compute_state_equation():
     lambda_values = np.array([2.0])
     state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, lambda_values)
 
-    assert state_matrix.shape == (3, 2)
-    assert target_vector.shape == (3,)
-    # expected state matrix:
+    assert state_matrix.shape == (2, 2)
+    assert target_vector.shape == (2,)
+    # The new optimized function directly returns A_sq and b_sq where row 0 is removed.
+    # original matrix:
     # [[-2, 0],
     #  [2, 0],
     #  [1, 1]]
-    assert np.allclose(state_matrix.toarray(), np.array([[-2.0, 0.0], [2.0, 0.0], [1.0, 1.0]]))
-    assert np.allclose(target_vector, np.array([0.0, 0.0, 1.0]))
+    # A_sq:
+    # [[2, 0],
+    #  [1, 1]]
+    assert np.allclose(state_matrix.toarray(), np.array([[2.0, 0.0], [1.0, 1.0]]))
+    assert np.allclose(target_vector, np.array([0.0, 1.0]))
 
 
 def test_solve_for_steady_state():
@@ -130,11 +134,12 @@ def test_compute_state_equation_numba():
     edges = np.array([[0, 1]])
     arc_transitions = np.array([0])
     lambda_values = np.array([2.0])
-    data, rows, cols = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
+    data, indices, indptr = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
 
-    state_matrix = coo_array((data, (rows, cols)), shape=(num_vertices + 1, num_vertices)).toarray()
+    from scipy.sparse import csr_array
+    state_matrix = csr_array((data, indices, indptr), shape=(num_vertices, num_vertices)).toarray()
 
-    expected_matrix = np.array([[-2.0, 0.0], [2.0, 0.0], [1.0, 1.0]])
+    expected_matrix = np.array([[2.0, 0.0], [1.0, 1.0]])
     assert np.allclose(state_matrix, expected_matrix)
 
 
