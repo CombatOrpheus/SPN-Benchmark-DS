@@ -13,7 +13,6 @@ from io import BytesIO
 
 import h5py
 import numpy as np
-import pandas as pd
 
 
 def setup_arg_parser():
@@ -95,9 +94,13 @@ def load_data(filepath):
 
     except Exception as e:
         print(f"Error loading data: {e}")
+        import pandas as pd
+
         return pd.DataFrame(), {}
 
     print(f"Successfully loaded {len(stats_list)} samples.")
+    import pandas as pd
+
     return pd.DataFrame(stats_list), config
 
 
@@ -187,6 +190,8 @@ def create_config_table(config):
     """Creates an HTML table from the configuration dictionary."""
     if not config:
         return "<p>No configuration data found.</p>"
+
+    import pandas as pd
 
     config_df = pd.DataFrame(list(config.items()), columns=["Parameter", "Value"])
     html_table = config_df.to_html(index=False, border=0, classes="table table-striped mt-4")

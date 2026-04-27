@@ -16,39 +16,75 @@ from spn_datasets.generator import ArrivableGraph as ArrGra
 @numba.jit(nopython=True, cache=True)
 def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
     """Numba-optimized core of compute_state_equation.
-    Constructs arrays for COO sparse matrix format to prevent O(V^2) memory bottlenecks.
+    Constructs arrays for CSR sparse matrix format to prevent O(V^2) memory bottlenecks
+    and avoids the `.tocsc()` + slice overhead in Python.
+    Returns the arrays needed to build an (N, N) square CSR matrix directly.
     """
     num_edges = len(edges)
-    num_entries = 2 * num_edges + num_vertices
 
-    rows = np.zeros(num_entries, dtype=np.int32)
-    cols = np.zeros(num_entries, dtype=np.int32)
-    data = np.zeros(num_entries, dtype=np.float64)
+    nnz_per_row = np.zeros(num_vertices, dtype=np.int32)
 
-    idx = 0
     for i in range(num_edges):
-        edge = edges[i]
-        trans_idx = arc_transitions[i]
-        src_idx, dest_idx = edge[0], edge[1]
-        rate = lambda_values[trans_idx]
+        src_idx = edges[i, 0]
+        dest_idx = edges[i, 1]
 
-        rows[idx] = src_idx
-        cols[idx] = src_idx
-        data[idx] = -rate
-        idx += 1
+        # Rate equation for src_idx (original row src_idx)
+        if src_idx > 0:
+            nnz_per_row[src_idx - 1] += 1
 
-        rows[idx] = dest_idx
-        cols[idx] = src_idx
-        data[idx] = rate
-        idx += 1
+        # Rate equation for dest_idx (original row dest_idx)
+        if dest_idx > 0:
+            nnz_per_row[dest_idx - 1] += 1
 
+    # The last row is the sum=1 equation, it has non-zeros for all columns 0..num_vertices-1
+    nnz_per_row[num_vertices - 1] = num_vertices
+
+    # Now compute indptr
+    indptr = np.zeros(num_vertices + 1, dtype=np.int32)
     for i in range(num_vertices):
-        rows[idx] = num_vertices
-        cols[idx] = i
-        data[idx] = 1.0
-        idx += 1
+        indptr[i + 1] = indptr[i] + nnz_per_row[i]
 
-    return data, rows, cols
+    num_nnz = indptr[num_vertices]
+    data = np.zeros(num_nnz, dtype=np.float64)
+    indices = np.zeros(num_nnz, dtype=np.int32)
+
+    # We will use a running pointer for each row to insert elements
+    current_ptr = indptr[:-1].copy()
+
+    # Insert elements
+    for i in range(num_edges):
+        src_idx = edges[i, 0]
+        dest_idx = edges[i, 1]
+        rate = lambda_values[arc_transitions[i]]
+
+        # Original row src_idx has -rate at col src_idx
+        if src_idx > 0:
+            row = src_idx - 1
+            pos = current_ptr[row]
+            indices[pos] = src_idx
+            data[pos] -= rate
+            current_ptr[row] += 1
+
+        # Original row dest_idx has +rate at col src_idx
+        if dest_idx > 0:
+            row = dest_idx - 1
+            pos = current_ptr[row]
+            indices[pos] = src_idx
+            data[pos] += rate
+            current_ptr[row] += 1
+
+    # The sum=1 equation (last row of A_sq) has 1.0 for all columns
+    row = num_vertices - 1
+    for i in range(num_vertices):
+        pos = current_ptr[row]
+        indices[pos] = i
+        data[pos] = 1.0
+        current_ptr[row] += 1
+
+    return data, indices, indptr
+
+
+from scipy.sparse import csr_array
 
 
 def compute_state_equation(
@@ -56,7 +92,7 @@ def compute_state_equation(
     edges: np.ndarray,
     arc_transitions: np.ndarray,
     lambda_values: np.ndarray,
-) -> Tuple[csc_array, np.ndarray]:
+) -> Tuple[csr_array, np.ndarray]:
     """Computes the state equation for the SPN using sparse matrices.
 
     Args:
@@ -67,30 +103,33 @@ def compute_state_equation(
 
     Returns:
         A tuple containing the sparse matrix for the system of equations
-        and the target vector.
+        and the target vector, already modified to be square (N, N).
     """
     num_vertices = len(vertices)
 
     # Use Numba-optimized function for the core computation
-    edges_arr = edges.astype(np.int32)
+    edges_arr = np.asarray(edges, dtype=np.int32)
     if edges_arr.ndim == 1:
         # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
 
-    data, rows, cols = _compute_state_equation_numba(
+    data, indices, indptr = _compute_state_equation_numba(
         num_vertices,
         edges_arr,
-        arc_transitions.astype(np.int32),
-        lambda_values,
+        np.asarray(arc_transitions, dtype=np.int32),
+        np.asarray(lambda_values, dtype=np.float64),
     )
 
-    # Construct COO sparse matrix directly from data, rows, cols and convert to CSC
-    state_matrix = coo_array((data, (rows, cols)), shape=(num_vertices + 1, num_vertices)).tocsc()
+    # Construct CSR sparse matrix directly from data, indices, indptr
+    A_sq = csr_array((data, indices, indptr), shape=(num_vertices, num_vertices))
 
-    target_vector = np.zeros(num_vertices + 1, dtype=float)
-    target_vector[num_vertices] = 1.0
+    # We need to sum duplicates in CSR if there are multiple edges
+    A_sq.sum_duplicates()
 
-    return state_matrix, target_vector
+    b_sq = np.zeros(num_vertices, dtype=float)
+    b_sq[-1] = 1.0
+
+    return A_sq, b_sq
 
 
 @numba.jit(nopython=True, cache=True)
@@ -146,14 +185,8 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
     return marking_density_matrix, avg_tokens_per_place
 
 
-def solve_for_steady_state(state_matrix: csc_array, target_vector: np.ndarray) -> np.ndarray:
+def solve_for_steady_state(A_sq: csr_array, b_sq: np.ndarray) -> np.ndarray:
     """Solves for steady-state probabilities using lsqr on a modified system."""
-    # To solve, we need a square matrix. We can achieve this by removing
-    # one of the redundant equations from the state matrix (the first `num_vertices` rows).
-    # We remove the first row to make it a square matrix of size (num_vertices, num_vertices).
-    A_sq = state_matrix[1:, :]
-    b_sq = target_vector[1:]
-
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -189,14 +222,16 @@ def _run_sgn_task(
     if vertices.size == 0:
         return None, None, None, False
 
-    vertices_np = vertices.astype(int)
-    state_matrix, target_vector = compute_state_equation(vertices, edges, arc_transitions, transition_rates)
+    vertices_np = np.asarray(vertices, dtype=np.int32)
+    state_matrix, target_vector = compute_state_equation(vertices_np, edges, arc_transitions, transition_rates)
     steady_state_probs = solve_for_steady_state(state_matrix, target_vector)
 
     if steady_state_probs is None:
         return None, None, None, False
 
-    marking_density, avg_markings = compute_average_markings(vertices_np, steady_state_probs)
+    marking_density, avg_markings = compute_average_markings(
+        vertices_np, np.asarray(steady_state_probs, dtype=np.float64)
+    )
     return steady_state_probs, marking_density, avg_markings, True
 
 
@@ -212,10 +247,10 @@ def generate_stochastic_net_task(
         A tuple with steady-state probabilities, mark density, average markings,
         firing rates, and a success flag.
     """
-    vertices = np.asarray(vertices)
-    edges = np.asarray(edges)
-    arc_transitions = np.asarray(arc_transitions)
-    transition_rates = np.random.randint(1, 11, size=num_transitions).astype(float)
+    vertices = np.asarray(vertices, dtype=np.int32)
+    edges = np.asarray(edges, dtype=np.int32)
+    arc_transitions = np.asarray(arc_transitions, dtype=np.int32)
+    transition_rates = np.random.randint(1, 11, size=num_transitions).astype(np.float64)
     probs, density, markings, success = _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
     return probs, density, markings, transition_rates, success
 
@@ -227,11 +262,11 @@ def generate_stochastic_net_task_with_rates(
     transition_rates: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
     """Generates an SGN task with specified firing rates."""
-    vertices = np.asarray(vertices)
-    edges = np.asarray(edges)
-    arc_transitions = np.asarray(arc_transitions)
-    transition_rates = np.asarray(transition_rates)
-    return _run_sgn_task(vertices, edges, arc_transitions, transition_rates.astype(float))
+    vertices = np.asarray(vertices, dtype=np.int32)
+    edges = np.asarray(edges, dtype=np.int32)
+    arc_transitions = np.asarray(arc_transitions, dtype=np.int32)
+    transition_rates = np.asarray(transition_rates, dtype=np.float64)
+    return _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
 
 
 @numba.jit(nopython=True, cache=True)

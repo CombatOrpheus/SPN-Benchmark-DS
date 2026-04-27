@@ -32,14 +32,16 @@ def test_benchmark_generate_reachability_graph(benchmark):
     benchmark(f)
 
 
+from scipy.sparse import csr_array
+
 def test_benchmark_solve_for_steady_state(benchmark):
     """Benchmark solving for steady-state probabilities."""
-    state_matrix = csc_array(np.random.rand(101, 100))
-    target_vector = np.zeros(101)
-    target_vector[-1] = 1.0
+    A_sq = csr_array(np.random.rand(100, 100))
+    b_sq = np.zeros(100)
+    b_sq[-1] = 1.0
 
     def f():
-        solve_for_steady_state(state_matrix, target_vector)
+        solve_for_steady_state(A_sq, b_sq)
 
     benchmark(f)
 
