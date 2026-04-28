@@ -24,3 +24,7 @@
 ## 2024-04-25 - [Numba Type Mismatch Recompilation]
 **Learning:** If a Numba JIT function (`@numba.jit(cache=True)`) is repeatedly called with numpy arrays of varying types (e.g. `np.int64` vs `np.int32` depending on the platform or generation method), Numba will spend significant time recompiling the function for the new signature during runtime.
 **Action:** To prevent Numba recompilation overhead on every unique array type signature (especially during batch generation), ensure inputs like `vertices`, `edges`, and `arc_transitions` are explicitly and consistently typed (e.g., using `np.asarray(..., dtype=np.int32)` or `np.float64`) before being passed to `@numba.jit` functions.
+
+## 2024-04-28 - [Cache Array Reductions]
+**Learning:** Calling `.sum()` or other reduction methods on NumPy arrays multiple times in short succession (e.g., in a chained `if` statement like `if markings.sum() > 1000 or markings.sum() < -1000:`) evaluates the entire array repeatedly, causing unnecessary performance overhead.
+**Action:** Always cache the result of array reduction methods in a variable (e.g., `markings_sum = markings.sum()`) when using it multiple times in the same code block to avoid redundant evaluations.
