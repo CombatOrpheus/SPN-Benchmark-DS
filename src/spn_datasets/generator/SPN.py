@@ -528,7 +528,13 @@ def filter_spn(
         success,
     ) = generate_stochastic_net_task(vertices, edges, arc_transitions, num_transitions)
 
-    if not success or markings.sum() > 1000 or markings.sum() < -1000:
+    if not success:
+        return {}, False
+
+    # ⚡ Bolt Optimization: Cache markings.sum() to a variable
+    # to avoid evaluating `.sum()` twice on the NumPy array.
+    markings_sum = markings.sum()
+    if markings_sum > 1000 or markings_sum < -1000:
         return {}, False
 
     return (
