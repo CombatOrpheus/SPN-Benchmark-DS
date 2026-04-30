@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import numba
 from scipy.sparse import csc_array, coo_array
-from scipy.sparse.linalg import MatrixRankWarning, lsqr
+from scipy.sparse.linalg import MatrixRankWarning, lsqr, bicgstab
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
@@ -186,20 +186,33 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
 
 def solve_for_steady_state(A_sq: csr_array, b_sq: np.ndarray) -> np.ndarray:
-    """Solves for steady-state probabilities using lsqr on a modified system."""
+    """Solves for steady-state probabilities using bicgstab with a fallback to lsqr."""
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            # lsqr is robust against singular/ill-conditioned matrices and doesn't crash Python
-            probs, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var = lsqr(A_sq, b_sq, atol=1e-5, btol=1e-5)
 
-        if istop not in (1, 2):
-            return None
+            # Fast, iterative solver (requires square matrix)
+            if A_sq.shape[0] == A_sq.shape[1]:
+                probs, info = bicgstab(A_sq, b_sq, rtol=1e-5, atol=1e-5)
+            else:
+                info = -1
+
+            if info != 0:
+                # lsqr is robust against singular/ill-conditioned matrices and doesn't crash Python
+                probs, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var = lsqr(
+                    A_sq, b_sq, atol=1e-5, btol=1e-5
+                )
+                if istop not in (1, 2):
+                    return None
 
         # spsolve might return a matrix if the inputs aren't perfectly aligned or
         # in some error conditions. Make sure it's flattened.
+        # ⚡ Bolt Optimization: Use `np.ravel()` or direct `flatten()`
+        # to avoid intermediate array allocations.
         if hasattr(probs, "toarray"):
-            probs = probs.toarray().flatten()
+            probs = probs.toarray().ravel()
+        elif hasattr(probs, "ravel"):
+            probs = probs.ravel()
         elif hasattr(probs, "flatten"):
             probs = probs.flatten()
 
