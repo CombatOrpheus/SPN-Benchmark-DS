@@ -33,4 +33,7 @@ This file is used by the `SPNGenerate.py` script to control the generation of St
 - `visualization_output_location`: The directory to save the visualizations.
 - `enable_transformations`: A boolean indicating whether to apply transformations to the SPNs.
 - `maximum_transformations_per_sample`: The maximum number of transformations to apply to each SPN.
-- `output_file`: The name of the output HDF5 file.
+- `output_file`: The name of the output HDF5 or JSON-L file.
+- `output_format`: The format for the output file. Choices are `"hdf5"` or `"jsonl"`.
+- `jsonl_compression`: The compression algorithm to use when `output_format` is set to `"jsonl"`. Choices are `"none"`, `"gzip"`, `"zstandard"`, or `"lz4"`.
+- `enable_statistics_report`: A boolean indicating whether to generate a statistical HTML report after generating the data.
