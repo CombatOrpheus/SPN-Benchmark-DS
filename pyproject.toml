@@ -29,6 +29,9 @@ dependencies = [
     # Excel file handling
     "openpyxl",
 
+    # Compression
+    "zstandard",
+    "lz4",
 ]
 
 [project.optional-dependencies]

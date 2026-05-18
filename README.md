@@ -130,6 +130,49 @@ with SPNDataReader(hdf5_path) as reader:
             break
 ```
 
+### Reading JSON-L Streams
+
+In addition to HDF5, datasets can be exported to line-delimited JSON (JSON-L), which is highly beneficial for streaming pipelines where the entire dataset does not fit into RAM.
+
+To enable JSON-L output, set `output_format = "jsonl"` in your configuration or pass `--output_format jsonl` to `SPNGenerate.py`. By default, this outputs an uncompressed text file, but you can dramatically reduce file size by using the `--jsonl_compression` flag (options: `"none"`, `"gzip"`, `"zstandard"`, `"lz4"`). We highly recommend `"zstandard"` as it provides compression ratios similar to gzip but is nearly 100x faster to write.
+
+**JSON-L Format:**
+- The first line of the output file is always a JSON object containing the generation configuration.
+- Every subsequent line is a single, complete JSON object representing one generated SPN sample (including keys such as `petri_net`, `spn_steadypro`, `is_deadlock_free`, etc.).
+
+**Example Consumer:**
+Below is an example of how a downstream consumer can read a compressed `.jsonl.zst` stream line-by-line using Python without allocating massive memory buffers. (Note: Ensure you have `zstandard` installed).
+
+```python
+import json
+import zstandard as zstd
+import io
+
+file_path = "path/to/spn_dataset.jsonl.zst"
+
+# Open the compressed stream
+dctx = zstd.ZstdDecompressor()
+with open(file_path, "rb") as f:
+    with dctx.stream_reader(f) as reader:
+        # Wrap the byte stream in a TextIOWrapper to read strings line-by-line
+        text_stream = io.TextIOWrapper(reader, encoding='utf-8')
+
+        # Parse the first line (Generation Configuration)
+        try:
+            config_line = next(text_stream)
+            config = json.loads(config_line)
+            print("Successfully read configuration block.")
+        except StopIteration:
+            print("File is empty.")
+            exit()
+
+        # Stream the remaining dataset
+        for line in text_stream:
+            sample = json.loads(line)
+            # Process sample on the fly
+            # print("Sample keys:", list(sample.keys()))
+```
+
 ## Project Structure
 
 -   `DataGenerate/`: Contains the scripts for generating SPNs and their corresponding graphs.

@@ -145,6 +145,13 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def write_to_jsonl(file_handler, data):
-    """Appends a sample to a JSONL file, ensuring numpy compatibility."""
-    json_line = json.dumps(data, cls=NumpyEncoder)
-    file_handler.write(json_line + "\n")
+    """Appends a sample to a JSONL file, ensuring numpy compatibility.
+    Handles both regular file handlers and compressed streams (where strings need encoding to bytes).
+    """
+    json_line = json.dumps(data, cls=NumpyEncoder) + "\n"
+    # Some compression streams (like zstd compressor) might not have a 'mode' attribute
+    # but still require bytes. We can just check the type of write accepted.
+    try:
+        file_handler.write(json_line)
+    except TypeError:
+        file_handler.write(json_line.encode('utf-8'))

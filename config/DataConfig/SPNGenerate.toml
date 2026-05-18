@@ -16,4 +16,5 @@ enable_transformations = false
 maximum_transformations_per_sample = 100
 output_file = "spn_dataset.out"
 output_format = "hdf5"
+jsonl_compression = "none" # options: "none", "gzip", "zstandard", "lz4"
 enable_statistics_report = true

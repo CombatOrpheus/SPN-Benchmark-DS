@@ -94,6 +94,13 @@ def setup_arg_parser():
     general_group.add_argument("--output_data_location", type=str, help="Save directory.")
     general_group.add_argument("--output_file", type=str, help="Output filename.")
     general_group.add_argument("--output_format", type=str, choices=["hdf5", "jsonl"], help="Output file format.")
+    general_group.add_argument(
+        "--jsonl_compression",
+        type=str,
+        choices=["none", "gzip", "zstandard", "lz4"],
+        default="none",
+        help="Compression type to use for jsonl output."
+    )
     general_group.add_argument("--number_of_samples_to_generate", type=int, help="Number of samples.")
     general_group.add_argument("--number_of_parallel_jobs", type=int, help="Number of parallel jobs.")
 
@@ -160,10 +167,37 @@ def run_generation_from_config(config):
             hf.attrs["total_samples_written"] = len(all_samples)
         print(f"HDF5 file '{output_path}' created successfully.")
     elif output_format == "jsonl":
-        with open(output_path, "w") as f:
-            f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
-            for sample in tqdm(all_samples, desc="Writing to JSONL"):
-                FW.write_to_jsonl(f, sample)
+        compression = config.get("jsonl_compression", "none")
+        if compression == "gzip":
+            import gzip
+            output_path = output_path.with_suffix(".jsonl.gz")
+            with gzip.open(output_path, "wt", encoding="utf-8") as f:
+                f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
+                for sample in tqdm(all_samples, desc="Writing to JSONL (gzip)"):
+                    FW.write_to_jsonl(f, sample)
+        elif compression == "zstandard":
+            import zstandard as zstd
+            output_path = output_path.with_suffix(".jsonl.zst")
+            cctx = zstd.ZstdCompressor(level=3)
+            with open(output_path, "wb") as f:
+                with cctx.stream_writer(f) as compressor:
+                    compressor.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode('utf-8'))
+                    for sample in tqdm(all_samples, desc="Writing to JSONL (zstandard)"):
+                        FW.write_to_jsonl(compressor, sample)
+        elif compression == "lz4":
+            import lz4.frame
+            output_path = output_path.with_suffix(".jsonl.lz4")
+            with lz4.frame.open(output_path, "wb") as f:
+                f.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode('utf-8'))
+                for sample in tqdm(all_samples, desc="Writing to JSONL (lz4)"):
+                    FW.write_to_jsonl(f, sample)
+        else:
+            if output_path.suffix != ".jsonl":
+                output_path = output_path.with_suffix(".jsonl")
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
+                for sample in tqdm(all_samples, desc="Writing to JSONL"):
+                    FW.write_to_jsonl(f, sample)
         print(f"JSONL file '{output_path}' created successfully.")
 
     if config.get("enable_statistics_report"):
