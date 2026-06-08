@@ -91,10 +91,10 @@ def test_benchmark_get_enabled_transitions(benchmark):
     current_marking_vector = np.random.randint(0, 5, size=(num_places,)).astype(np.int64)
 
     # warmup
-    get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector)
+    scratch_enabled = np.empty(pre_condition_matrix.shape[1], dtype=np.int64); scratch_new_marks = np.empty((pre_condition_matrix.shape[1], pre_condition_matrix.shape[0]), dtype=np.int64); get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector, scratch_enabled, scratch_new_marks)
 
     def f():
-        get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector)
+        scratch_enabled = np.empty(pre_condition_matrix.shape[1], dtype=np.int64); scratch_new_marks = np.empty((pre_condition_matrix.shape[1], pre_condition_matrix.shape[0]), dtype=np.int64); get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector, scratch_enabled, scratch_new_marks)
 
     benchmark(f)
 

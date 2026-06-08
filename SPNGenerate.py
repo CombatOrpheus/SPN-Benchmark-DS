@@ -99,7 +99,7 @@ def setup_arg_parser():
         type=str,
         choices=["none", "gzip", "zstandard", "lz4"],
         default="none",
-        help="Compression type to use for jsonl output."
+        help="Compression type to use for jsonl output.",
     )
     general_group.add_argument("--number_of_samples_to_generate", type=int, help="Number of samples.")
     general_group.add_argument("--number_of_parallel_jobs", type=int, help="Number of parallel jobs.")
@@ -170,6 +170,7 @@ def run_generation_from_config(config):
         compression = config.get("jsonl_compression", "none")
         if compression == "gzip":
             import gzip
+
             output_path = output_path.with_suffix(".jsonl.gz")
             with gzip.open(output_path, "wt", encoding="utf-8") as f:
                 f.write(json.dumps(config, cls=FW.NumpyEncoder) + "\n")
@@ -177,18 +178,20 @@ def run_generation_from_config(config):
                     FW.write_to_jsonl(f, sample)
         elif compression == "zstandard":
             import zstandard as zstd
+
             output_path = output_path.with_suffix(".jsonl.zst")
             cctx = zstd.ZstdCompressor(level=3)
             with open(output_path, "wb") as f:
                 with cctx.stream_writer(f) as compressor:
-                    compressor.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode('utf-8'))
+                    compressor.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode("utf-8"))
                     for sample in tqdm(all_samples, desc="Writing to JSONL (zstandard)"):
                         FW.write_to_jsonl(compressor, sample)
         elif compression == "lz4":
             import lz4.frame
+
             output_path = output_path.with_suffix(".jsonl.lz4")
             with lz4.frame.open(output_path, "wb") as f:
-                f.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode('utf-8'))
+                f.write((json.dumps(config, cls=FW.NumpyEncoder) + "\n").encode("utf-8"))
                 for sample in tqdm(all_samples, desc="Writing to JSONL (lz4)"):
                     FW.write_to_jsonl(f, sample)
         else:

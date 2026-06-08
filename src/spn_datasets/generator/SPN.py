@@ -10,54 +10,120 @@ import numpy as np
 import numba
 from scipy.sparse import csc_array, coo_array
 from scipy.sparse.linalg import MatrixRankWarning, lsqr, bicgstab
+
+import threading
+
+_spn_scratchpad = threading.local()
+
+
+def _get_compute_state_scratchpad(num_vertices, num_edges):
+    if not hasattr(_spn_scratchpad, "nnz_per_row") or _spn_scratchpad.nnz_per_row.size < num_vertices:
+        _spn_scratchpad.nnz_per_row = np.empty(num_vertices * 2, dtype=np.int32)
+        _spn_scratchpad.indptr = np.empty((num_vertices * 2) + 1, dtype=np.int32)
+        _spn_scratchpad.current_ptr = np.empty(num_vertices * 2, dtype=np.int32)
+
+    # Calculate exact max non-zeros for these inputs
+    # Each edge contributes at most 2 non-zeros, plus the last row takes num_vertices.
+    max_nnz = (num_edges * 2) + num_vertices
+    if getattr(_spn_scratchpad, "data", np.array([])).size < max_nnz:
+        _spn_scratchpad.data = np.empty(max_nnz * 2, dtype=np.float64)
+        _spn_scratchpad.indices = np.empty(max_nnz * 2, dtype=np.int32)
+
+    return (
+        _spn_scratchpad.nnz_per_row,
+        _spn_scratchpad.indptr,
+        _spn_scratchpad.current_ptr,
+        _spn_scratchpad.data,
+        _spn_scratchpad.indices,
+    )
+
+
+def _get_is_connected_scratchpad(num_nodes):
+    if not hasattr(_spn_scratchpad, "visited_conn") or _spn_scratchpad.visited_conn.size < num_nodes:
+        _spn_scratchpad.visited_conn = np.empty(num_nodes * 2, dtype=np.bool_)
+        _spn_scratchpad.queue_conn = np.empty(num_nodes * 2, dtype=np.int32)
+    return _spn_scratchpad.visited_conn, _spn_scratchpad.queue_conn
+
+
+def _get_qualitative_scratchpad(num_vertices, num_edges):
+    if not hasattr(_spn_scratchpad, "seen_sources") or _spn_scratchpad.seen_sources.size < num_vertices:
+        _spn_scratchpad.seen_sources = np.empty(num_vertices * 2, dtype=np.bool_)
+        _spn_scratchpad.edge_counts = np.empty(num_vertices * 2, dtype=np.int32)
+        _spn_scratchpad.adj_ptr = np.empty((num_vertices * 2) + 1, dtype=np.int32)
+        _spn_scratchpad.current_idx = np.empty(num_vertices * 2, dtype=np.int32)
+        _spn_scratchpad.visited_qual = np.empty(num_vertices * 2, dtype=np.bool_)
+        _spn_scratchpad.queue_qual = np.empty(num_vertices * 2, dtype=np.int32)
+
+    if getattr(_spn_scratchpad, "adj_t", np.array([])).size < num_edges:
+        _spn_scratchpad.adj_t = np.empty(num_edges * 2, dtype=np.int32)
+
+    return (
+        _spn_scratchpad.seen_sources,
+        _spn_scratchpad.edge_counts,
+        _spn_scratchpad.adj_t,
+        _spn_scratchpad.adj_ptr,
+        _spn_scratchpad.current_idx,
+        _spn_scratchpad.visited_qual,
+        _spn_scratchpad.queue_qual,
+    )
+
+
+def _get_avg_markings_scratchpad(num_places, max_token):
+    if not hasattr(_spn_scratchpad, "avg_tokens_per_place") or _spn_scratchpad.avg_tokens_per_place.size < num_places:
+        _spn_scratchpad.avg_tokens_per_place = np.empty(num_places * 2, dtype=np.float64)
+
+    if getattr(_spn_scratchpad, "present_tokens", np.array([])).size < max_token + 1:
+        _spn_scratchpad.present_tokens = np.empty((max_token + 1) * 2, dtype=np.bool_)
+        _spn_scratchpad.token_to_idx = np.empty((max_token + 1) * 2, dtype=np.int32)
+
+    return (
+        _spn_scratchpad.avg_tokens_per_place,
+        _spn_scratchpad.present_tokens,
+        _spn_scratchpad.token_to_idx,
+    )
+
+
 from spn_datasets.generator import ArrivableGraph as ArrGra
 
 
 @numba.jit(nopython=True, cache=True)
-def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values):
-    """Numba-optimized core of compute_state_equation.
-    Constructs arrays for CSR sparse matrix format to prevent O(V^2) memory bottlenecks
-    and avoids the `.tocsc()` + slice overhead in Python.
-    Returns the arrays needed to build an (N, N) square CSR matrix directly.
-    """
+def _compute_state_equation_numba(
+    num_vertices, edges, arc_transitions, lambda_values, nnz_per_row, indptr, current_ptr, data, indices
+):
     num_edges = len(edges)
 
-    nnz_per_row = np.zeros(num_vertices, dtype=np.int32)
+    for i in range(num_vertices):
+        nnz_per_row[i] = 0
 
     for i in range(num_edges):
         src_idx = edges[i, 0]
         dest_idx = edges[i, 1]
 
-        # Rate equation for src_idx (original row src_idx)
         if src_idx > 0:
             nnz_per_row[src_idx - 1] += 1
 
-        # Rate equation for dest_idx (original row dest_idx)
         if dest_idx > 0:
             nnz_per_row[dest_idx - 1] += 1
 
-    # The last row is the sum=1 equation, it has non-zeros for all columns 0..num_vertices-1
     nnz_per_row[num_vertices - 1] = num_vertices
 
-    # Now compute indptr
-    indptr = np.zeros(num_vertices + 1, dtype=np.int32)
+    indptr[0] = 0
     for i in range(num_vertices):
         indptr[i + 1] = indptr[i] + nnz_per_row[i]
 
     num_nnz = indptr[num_vertices]
-    data = np.zeros(num_nnz, dtype=np.float64)
-    indices = np.zeros(num_nnz, dtype=np.int32)
+    for i in range(num_nnz):
+        data[i] = 0.0
+        indices[i] = 0
 
-    # We will use a running pointer for each row to insert elements
-    current_ptr = indptr[:-1].copy()
+    for i in range(num_vertices):
+        current_ptr[i] = indptr[i]
 
-    # Insert elements
     for i in range(num_edges):
         src_idx = edges[i, 0]
         dest_idx = edges[i, 1]
         rate = lambda_values[arc_transitions[i]]
 
-        # Original row src_idx has -rate at col src_idx
         if src_idx > 0:
             row = src_idx - 1
             pos = current_ptr[row]
@@ -65,7 +131,6 @@ def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_v
             data[pos] -= rate
             current_ptr[row] += 1
 
-        # Original row dest_idx has +rate at col src_idx
         if dest_idx > 0:
             row = dest_idx - 1
             pos = current_ptr[row]
@@ -73,7 +138,6 @@ def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_v
             data[pos] += rate
             current_ptr[row] += 1
 
-    # The sum=1 equation (last row of A_sq) has 1.0 for all columns
     row = num_vertices - 1
     for i in range(num_vertices):
         pos = current_ptr[row]
@@ -81,7 +145,7 @@ def _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_v
         data[pos] = 1.0
         current_ptr[row] += 1
 
-    return data, indices, indptr
+    return num_nnz
 
 
 from scipy.sparse import csr_array
@@ -113,14 +177,26 @@ def compute_state_equation(
         # Ensure that the array is 2D, even if empty
         edges_arr = edges_arr.reshape(-1, 2)
 
-    data, indices, indptr = _compute_state_equation_numba(
+    scratch_nnz, scratch_indptr, scratch_cur, scratch_data, scratch_indices = _get_compute_state_scratchpad(
+        num_vertices, len(edges_arr)
+    )
+
+    num_nnz = _compute_state_equation_numba(
         num_vertices,
         edges_arr,
         np.asarray(arc_transitions, dtype=np.int32),
         np.asarray(lambda_values, dtype=np.float64),
+        scratch_nnz,
+        scratch_indptr,
+        scratch_cur,
+        scratch_data,
+        scratch_indices,
     )
 
     # Construct CSR sparse matrix directly from data, indices, indptr
+    data = scratch_data[:num_nnz].copy()
+    indices = scratch_indices[:num_nnz].copy()
+    indptr = scratch_indptr[: num_vertices + 1].copy()
     A_sq = csr_array((data, indices, indptr), shape=(num_vertices, num_vertices))
 
     # We need to sum duplicates in CSR if there are multiple edges
@@ -133,28 +209,17 @@ def compute_state_equation(
 
 
 @numba.jit(nopython=True, cache=True)
-def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Calculates the average number of tokens for each place.
-
-    Args:
-        vertices: A 2D array of reachable markings.
-        steady_state_probs: An array of steady-state probabilities.
-
-    Returns:
-        A tuple containing the marking density matrix and the average tokens per place.
-    """
+def _compute_average_markings_core(
+    vertices, steady_state_probs, avg_tokens_per_place, present_tokens, token_to_idx, max_token
+):
     num_states, num_places = vertices.shape
 
-    # Pre-allocate avg_tokens_per_place
-    avg_tokens_per_place = np.zeros(num_places, dtype=np.float64)
+    for i in range(num_places):
+        avg_tokens_per_place[i] = 0.0
 
-    # Calculate max token to pre-allocate tracking arrays
-    max_token = np.max(vertices)
+    for i in range(max_token + 1):
+        present_tokens[i] = False
 
-    # Boolean array to track which tokens are present
-    present_tokens = np.zeros(max_token + 1, dtype=np.bool_)
-
-    # Single pass to compute avg_tokens_per_place and identify present tokens
     for s in range(num_states):
         prob = steady_state_probs[s]
         for p in range(num_places):
@@ -162,9 +227,13 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
             avg_tokens_per_place[p] += val * prob
             present_tokens[val] = True
 
-    # Map the observed tokens to dense indices for the density matrix
-    num_unique_tokens = present_tokens.sum()
-    token_to_idx = np.full(max_token + 1, -1, dtype=np.int32)
+    num_unique_tokens = 0
+    for i in range(max_token + 1):
+        if present_tokens[i]:
+            num_unique_tokens += 1
+
+    for i in range(max_token + 1):
+        token_to_idx[i] = -1
 
     idx = 0
     for val in range(max_token + 1):
@@ -174,7 +243,6 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
 
     marking_density_matrix = np.zeros((num_places, num_unique_tokens), dtype=np.float64)
 
-    # Compute marking density matrix
     for s in range(num_states):
         prob = steady_state_probs[s]
         for p in range(num_places):
@@ -182,6 +250,18 @@ def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarra
             idx = token_to_idx[token_val]
             marking_density_matrix[p, idx] += prob
 
+    return marking_density_matrix, num_unique_tokens
+
+
+def compute_average_markings(vertices: np.ndarray, steady_state_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    max_token = np.max(vertices)
+    scratch_avg, scratch_present, scratch_token_idx = _get_avg_markings_scratchpad(vertices.shape[1], max_token)
+
+    marking_density_matrix, _ = _compute_average_markings_core(
+        vertices, steady_state_probs, scratch_avg, scratch_present, scratch_token_idx, max_token
+    )
+
+    avg_tokens_per_place = scratch_avg[: vertices.shape[1]].copy()
     return marking_density_matrix, avg_tokens_per_place
 
 
@@ -282,8 +362,26 @@ def generate_stochastic_net_task_with_rates(
     return _run_sgn_task(vertices, edges, arc_transitions, transition_rates)
 
 
-@numba.jit(nopython=True, cache=True)
 def is_connected(petri_net_matrix):
+    """Checks if the Petri net is weakly connected (single component)."""
+    if petri_net_matrix.size == 0:
+        return False
+    if petri_net_matrix.ndim != 2:
+        return False
+    num_places, num_cols = petri_net_matrix.shape
+    if num_places == 0 or num_cols < 3:
+        return False
+    num_transitions = (num_cols - 1) // 2
+    if num_transitions == 0:
+        return False
+
+    num_nodes = num_places + num_transitions
+    scratch_visited, scratch_queue = _get_is_connected_scratchpad(num_nodes)
+    return _is_connected_core(petri_net_matrix, scratch_visited, scratch_queue)
+
+
+@numba.jit(nopython=True, cache=True)
+def _is_connected_core(petri_net_matrix, visited, queue):
     """Checks if the Petri net is weakly connected (single component).
 
     This function treats the Petri net as a bipartite graph (Places U Transitions)
@@ -335,8 +433,8 @@ def is_connected(petri_net_matrix):
 
     # BFS to check for full connectivity (single component)
     num_nodes = num_places + num_transitions
-    visited = np.zeros(num_nodes, dtype=np.bool_)
-    queue = np.empty(num_nodes, dtype=np.int32)
+    for i in range(num_nodes):
+        visited[i] = False
     head = 0
     tail = 0
 
@@ -378,7 +476,17 @@ def is_connected(petri_net_matrix):
 
 
 @numba.jit(nopython=True, cache=True)
-def _compute_qualitative_properties_core(vertices: np.ndarray, edges: np.ndarray) -> Tuple[bool, bool, bool, int]:
+def _compute_qualitative_properties_core(
+    vertices: np.ndarray,
+    edges: np.ndarray,
+    seen_sources: np.ndarray,
+    edge_counts: np.ndarray,
+    adj_t: np.ndarray,
+    adj_ptr: np.ndarray,
+    current_idx: np.ndarray,
+    visited: np.ndarray,
+    queue: np.ndarray,
+) -> Tuple[bool, bool, bool, int]:
     """Core Numba-optimized logic for qualitative properties."""
     num_vertices = len(vertices)
 
@@ -390,7 +498,8 @@ def _compute_qualitative_properties_core(vertices: np.ndarray, edges: np.ndarray
         return False, (num_vertices == 1), is_safe, max_tokens
 
     # Deadlock-free
-    seen_sources = np.zeros(num_vertices, dtype=np.bool_)
+    for i in range(num_vertices):
+        seen_sources[i] = False
     for i in range(len(edges)):
         seen_sources[edges[i, 0]] = True
 
@@ -401,16 +510,18 @@ def _compute_qualitative_properties_core(vertices: np.ndarray, edges: np.ndarray
             break
 
     # Reversibility: Flat adjacency list for transpose graph
-    edge_counts = np.zeros(num_vertices, dtype=np.int32)
+    for i in range(num_vertices):
+        edge_counts[i] = 0
     for i in range(len(edges)):
         edge_counts[edges[i, 1]] += 1
 
-    adj_t = np.empty(len(edges), dtype=np.int32)
-    adj_ptr = np.zeros(num_vertices + 1, dtype=np.int32)
+    for i in range(num_vertices + 1):
+        adj_ptr[i] = 0
     for i in range(num_vertices):
         adj_ptr[i + 1] = adj_ptr[i] + edge_counts[i]
 
-    current_idx = np.zeros(num_vertices, dtype=np.int32)
+    for i in range(num_vertices):
+        current_idx[i] = 0
     for i in range(len(edges)):
         u = edges[i, 0]
         v = edges[i, 1]
@@ -419,8 +530,8 @@ def _compute_qualitative_properties_core(vertices: np.ndarray, edges: np.ndarray
         current_idx[v] += 1
 
     # BFS using native arrays
-    visited = np.zeros(num_vertices, dtype=np.bool_)
-    queue = np.empty(num_vertices, dtype=np.int32)
+    for i in range(num_vertices):
+        visited[i] = False
     visited[0] = True
     queue[0] = 0
     head = 0
@@ -469,7 +580,27 @@ def compute_qualitative_properties(
 
     # ⚡ Bolt Optimization: Replace Python `set()` and `deque` based property calculations
     # with a Numba compiled core function that uses flat adjacency arrays and integer queues.
-    is_deadlock_free, is_reversible, is_safe, max_tokens = _compute_qualitative_properties_core(vertices_arr, edges_arr)
+
+    (
+        scratch_seen,
+        scratch_edge_counts,
+        scratch_adj_t,
+        scratch_adj_ptr,
+        scratch_current_idx,
+        scratch_visited,
+        scratch_queue,
+    ) = _get_qualitative_scratchpad(len(vertices_arr), len(edges_arr))
+    is_deadlock_free, is_reversible, is_safe, max_tokens = _compute_qualitative_properties_core(
+        vertices_arr,
+        edges_arr,
+        scratch_seen,
+        scratch_edge_counts,
+        scratch_adj_t,
+        scratch_adj_ptr,
+        scratch_current_idx,
+        scratch_visited,
+        scratch_queue,
+    )
 
     return {
         "is_deadlock_free": bool(is_deadlock_free),
