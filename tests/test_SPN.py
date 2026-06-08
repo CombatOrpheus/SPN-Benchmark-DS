@@ -134,7 +134,16 @@ def test_compute_state_equation_numba():
     edges = np.array([[0, 1]])
     arc_transitions = np.array([0])
     lambda_values = np.array([2.0])
-    data, indices, indptr = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values)
+    scratch_nnz = np.empty(num_vertices * 2, dtype=np.int32)
+    scratch_indptr = np.empty((num_vertices * 2) + 1, dtype=np.int32)
+    scratch_cur = np.empty(num_vertices * 2, dtype=np.int32)
+    scratch_data = np.empty((len(edges) * 2 + num_vertices) * 2, dtype=np.float64)
+    scratch_indices = np.empty((len(edges) * 2 + num_vertices) * 2, dtype=np.int32)
+
+    num_nnz = _compute_state_equation_numba(num_vertices, edges, arc_transitions, lambda_values, scratch_nnz, scratch_indptr, scratch_cur, scratch_data, scratch_indices)
+    data = scratch_data[:num_nnz]
+    indices = scratch_indices[:num_nnz]
+    indptr = scratch_indptr[:num_vertices + 1]
 
     from scipy.sparse import csr_array
     state_matrix = csr_array((data, indices, indptr), shape=(num_vertices, num_vertices)).toarray()

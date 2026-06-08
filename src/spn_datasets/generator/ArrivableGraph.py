@@ -8,6 +8,36 @@ import numba
 from numba.core import types
 from numba.typed import Dict
 
+import threading
+
+# Thread-local storage for scratchpad buffers to avoid allocations per SPN
+_scratchpad = threading.local()
+
+import threading
+
+# Thread-local storage for scratchpad buffers to avoid allocations per SPN
+_scratchpad = threading.local()
+
+
+def _get_scratchpad(max_markings, num_places, num_transitions):
+    key = (max_markings, num_places, num_transitions)
+
+    if not hasattr(_scratchpad, "cache"):
+        _scratchpad.cache = {}
+
+    if key not in _scratchpad.cache:
+        visited = np.empty((max_markings, num_places), dtype=np.int64)
+        queue = np.empty(max_markings, dtype=np.int64)
+        max_edges = max_markings * num_transitions
+        reach_src = np.empty(max_edges, dtype=np.int64)
+        reach_dst = np.empty(max_edges, dtype=np.int64)
+        edge_indices = np.empty(max_edges, dtype=np.int64)
+        enabled_trans = np.empty(num_transitions, dtype=np.int64)
+        new_marks = np.empty((num_transitions, num_places), dtype=np.int64)
+        _scratchpad.cache[key] = (visited, queue, reach_src, reach_dst, edge_indices, enabled_trans, new_marks)
+
+    return _scratchpad.cache[key]
+
 
 @numba.jit(nopython=True, cache=True)
 def fnv1a_hash(data):
@@ -20,7 +50,9 @@ def fnv1a_hash(data):
 
 
 @numba.jit(nopython=True, cache=True)
-def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking_vector):
+def get_enabled_transitions(
+    pre_condition_matrix, change_matrix, current_marking_vector, enabled_transitions, new_markings
+):
     """Identifies enabled transitions and calculates the resulting markings.
 
     Args:
@@ -37,7 +69,7 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
     num_transitions = pre_condition_matrix.shape[1]
 
     # Pre-allocate array to avoid intermediate boolean mask and np.where
-    enabled_transitions = np.empty(num_transitions, dtype=np.int64)
+    # enabled_transitions is pre-allocated
     enabled_count = 0
 
     for t in range(num_transitions):
@@ -51,19 +83,19 @@ def get_enabled_transitions(pre_condition_matrix, change_matrix, current_marking
             enabled_count += 1
 
     if enabled_count == 0:
-        return np.empty((0, num_places), dtype=np.int64), np.empty((0,), dtype=np.int64)
+        return 0
 
-    enabled_transitions = enabled_transitions[:enabled_count]
+    # enabled_transitions is sliced outside
 
     # Pre-allocate new_markings to avoid implicit advanced indexing allocation
-    new_markings = np.empty((enabled_count, num_places), dtype=np.int64)
+    # new_markings is pre-allocated (num_transitions, num_places)
 
     for i in range(enabled_count):
         t = enabled_transitions[i]
         for p in range(num_places):
             new_markings[i, p] = current_marking_vector[p] + change_matrix[p, t]
 
-    return new_markings, enabled_transitions
+    return enabled_count
 
 
 @numba.jit(nopython=True, cache=True)
@@ -73,6 +105,13 @@ def _bfs_core(
     change_matrix,
     place_upper_limit,
     max_markings_to_explore,
+    visited_markings_array,
+    queue,
+    reachability_edges_src,
+    reachability_edges_dst,
+    edge_transition_indices,
+    scratch_enabled_transitions,
+    scratch_new_markings,
 ):
     """Core BFS loop optimized with Numba."""
     marking_index_counter = 0
@@ -80,7 +119,7 @@ def _bfs_core(
     # Visited markings are stored in a dense numpy array for efficient access
     # Since we know max_markings_to_explore, we can pre-allocate
     num_places = initial_marking.shape[0]
-    visited_markings_array = np.empty((max_markings_to_explore, num_places), dtype=np.int64)
+    # visited_markings_array passed as argument
     visited_markings_array[0] = initial_marking
 
     # Explored markings are stored in a Numba Dict for fast lookups using a hash as a key
@@ -88,7 +127,7 @@ def _bfs_core(
     explored_markings_dict[fnv1a_hash(initial_marking)] = marking_index_counter
 
     # The processing queue for the BFS algorithm, using a circular queue
-    queue = np.empty(max_markings_to_explore, dtype=np.int64)
+    # queue passed as argument
     queue[0] = marking_index_counter
     head = 0
     tail = 1
@@ -96,9 +135,9 @@ def _bfs_core(
     num_transitions = pre_matrix.shape[1]
 
     # Data structures to store the graph
-    reachability_edges_src = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
-    reachability_edges_dst = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
-    edge_transition_indices = np.empty(max_markings_to_explore * num_transitions, dtype=np.int64)
+    # reachability_edges_src passed as argument
+    # reachability_edges_dst passed as argument
+    # edge_transition_indices passed as argument
     edge_count = 0
     is_bounded = True
 
@@ -111,9 +150,11 @@ def _bfs_core(
             is_bounded = False
             break
 
-        enabled_next_markings, enabled_transition_indices = get_enabled_transitions(
-            pre_matrix, change_matrix, current_marking
+        enabled_count = get_enabled_transitions(
+            pre_matrix, change_matrix, current_marking, scratch_enabled_transitions, scratch_new_markings
         )
+        enabled_next_markings = scratch_new_markings[:enabled_count]
+        enabled_transition_indices = scratch_enabled_transitions[:enabled_count]
 
         # ⚡ Bolt Optimization: Replace `np.any(enabled_next_markings > place_upper_limit)`
         # with explicit nested loops. Numba compiles NumPy high-level reduction operators
@@ -203,13 +244,39 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
     initial_marking = np.asarray(incidence_matrix[:, -1], dtype=np.int64)
     change_matrix = post_matrix - pre_matrix
 
+    num_places = initial_marking.shape[0]
+    (
+        scratch_visited,
+        scratch_queue,
+        scratch_reach_src,
+        scratch_reach_dst,
+        scratch_edge_indices,
+        scratch_enabled_trans,
+        scratch_new_marks,
+    ) = _get_scratchpad(max_markings_to_explore, num_places, num_transitions)
+
     visited_markings_list, reach_src, reach_dst, edge_transition_indices, is_bounded = _bfs_core(
         initial_marking,
         pre_matrix,
         change_matrix,
         place_upper_limit,
         max_markings_to_explore,
+        scratch_visited,
+        scratch_queue,
+        scratch_reach_src,
+        scratch_reach_dst,
+        scratch_edge_indices,
+        scratch_enabled_trans,
+        scratch_new_marks,
     )
+
+    # Note: visited_markings_list, reach_src, etc. are views of the scratchpad.
+    # To prevent issues if these arrays are modified later while the scratchpad is reused,
+    # we copy them out.
+    visited_markings_list = visited_markings_list.copy()
+    reach_src = reach_src.copy()
+    reach_dst = reach_dst.copy()
+    edge_transition_indices = edge_transition_indices.copy()
 
     reachability_edges = np.column_stack((reach_src, reach_dst))
 

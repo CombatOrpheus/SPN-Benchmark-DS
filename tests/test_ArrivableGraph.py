@@ -22,7 +22,11 @@ def test_get_enabled_transitions(simple_petri_net):
     change_matrix = simple_petri_net[:, 1:2] - pre_matrix
     current_marking = simple_petri_net[:, -1]
 
-    new_markings, enabled_transitions = get_enabled_transitions(pre_matrix, change_matrix, current_marking)
+    scratch_enabled = np.empty(1, dtype=np.int64)
+    scratch_new_marks = np.empty((1, 2), dtype=np.int64)
+    enabled_count = get_enabled_transitions(pre_matrix, change_matrix, current_marking, scratch_enabled, scratch_new_marks)
+    new_markings = scratch_new_marks[:enabled_count]
+    enabled_transitions = scratch_enabled[:enabled_count]
 
     assert len(enabled_transitions) == 1
     assert enabled_transitions[0] == 0
@@ -35,7 +39,10 @@ def test_get_enabled_transitions_none():
     post = np.array([[0]])
     current_marking = np.array([0])
     change_matrix = post - pre
-    _, enabled_transitions = get_enabled_transitions(pre, change_matrix, current_marking)
+    scratch_enabled = np.empty(1, dtype=np.int64)
+    scratch_new_marks = np.empty((1, 1), dtype=np.int64)
+    enabled_count = get_enabled_transitions(pre, change_matrix, current_marking, scratch_enabled, scratch_new_marks)
+    enabled_transitions = scratch_enabled[:enabled_count]
     assert len(enabled_transitions) == 0
 
 

@@ -154,4 +154,4 @@ def write_to_jsonl(file_handler, data):
     try:
         file_handler.write(json_line)
     except TypeError:
-        file_handler.write(json_line.encode('utf-8'))
+        file_handler.write(json_line.encode("utf-8"))
