@@ -5,13 +5,6 @@ using Breadth-First Search (BFS) and optimized marking lookup.
 
 import numpy as np
 import numba
-from numba.core import types
-from numba.typed import Dict
-
-import threading
-
-# Thread-local storage for scratchpad buffers to avoid allocations per SPN
-_scratchpad = threading.local()
 
 import threading
 
@@ -34,7 +27,27 @@ def _get_scratchpad(max_markings, num_places, num_transitions):
         edge_indices = np.empty(max_edges, dtype=np.int64)
         enabled_trans = np.empty(num_transitions, dtype=np.int64)
         new_marks = np.empty((num_transitions, num_places), dtype=np.int64)
-        _scratchpad.cache[key] = (visited, queue, reach_src, reach_dst, edge_indices, enabled_trans, new_marks)
+
+        # Flat open-addressing hash table with load factor <= 0.5
+        table_capacity = 1 << int(np.ceil(np.log2(max(16, max_markings * 2))))
+        table_keys = np.empty(table_capacity, dtype=np.uint64)
+        table_values = np.full(table_capacity, -1, dtype=np.int64)
+        used_slots = np.empty(max_markings + 1, dtype=np.int64)
+        num_used_ptr = np.zeros(1, dtype=np.int64)
+
+        _scratchpad.cache[key] = (
+            visited,
+            queue,
+            reach_src,
+            reach_dst,
+            edge_indices,
+            enabled_trans,
+            new_marks,
+            table_keys,
+            table_values,
+            used_slots,
+            num_used_ptr,
+        )
 
     return _scratchpad.cache[key]
 
@@ -99,6 +112,46 @@ def get_enabled_transitions(
 
 
 @numba.jit(nopython=True, cache=True)
+def _lookup_or_insert(
+    table_keys,
+    table_values,
+    used_slots,
+    num_used_ptr,
+    visited_markings,
+    new_marking,
+    key_hash,
+    table_mask,
+    num_places,
+):
+    """Probes the flat open-addressing table with exact marking comparison on hash matches.
+
+    Returns:
+        tuple (existing_index, slot):
+            - If found: (existing_index >= 0, slot)
+            - If empty: (-1, slot), with key_hash inserted and slot tracked in used_slots.
+    """
+    slot = key_hash & table_mask
+    one = np.uint64(1)
+    while True:
+        existing_idx = table_values[slot]
+        if existing_idx == -1:
+            u_idx = num_used_ptr[0]
+            used_slots[u_idx] = slot
+            num_used_ptr[0] = u_idx + 1
+            table_keys[slot] = key_hash
+            return -1, slot
+        elif table_keys[slot] == key_hash:
+            match = True
+            for p in range(num_places):
+                if visited_markings[existing_idx, p] != new_marking[p]:
+                    match = False
+                    break
+            if match:
+                return existing_idx, slot
+        slot = (slot + one) & table_mask
+
+
+@numba.jit(nopython=True, cache=True)
 def _bfs_core(
     initial_marking,
     pre_matrix,
@@ -112,32 +165,38 @@ def _bfs_core(
     edge_transition_indices,
     scratch_enabled_transitions,
     scratch_new_markings,
+    table_keys,
+    table_values,
+    used_slots,
+    num_used_ptr,
+    table_mask,
 ):
-    """Core BFS loop optimized with Numba."""
-    marking_index_counter = 0
-
-    # Visited markings are stored in a dense numpy array for efficient access
-    # Since we know max_markings_to_explore, we can pre-allocate
+    """Core BFS loop optimized with Numba and flat open-addressing hash table."""
     num_places = initial_marking.shape[0]
-    # visited_markings_array passed as argument
+    num_used_ptr[0] = 0
+
+    marking_index_counter = 0
     visited_markings_array[0] = initial_marking
 
-    # Explored markings are stored in a Numba Dict for fast lookups using a hash as a key
-    explored_markings_dict = Dict.empty(key_type=types.uint64, value_type=types.int64)
-    explored_markings_dict[fnv1a_hash(initial_marking)] = marking_index_counter
+    initial_hash = fnv1a_hash(initial_marking)
+    _, init_slot = _lookup_or_insert(
+        table_keys,
+        table_values,
+        used_slots,
+        num_used_ptr,
+        visited_markings_array,
+        initial_marking,
+        initial_hash,
+        table_mask,
+        num_places,
+    )
+    table_values[init_slot] = marking_index_counter
 
-    # The processing queue for the BFS algorithm, using a circular queue
-    # queue passed as argument
     queue[0] = marking_index_counter
     head = 0
     tail = 1
 
     num_transitions = pre_matrix.shape[1]
-
-    # Data structures to store the graph
-    # reachability_edges_src passed as argument
-    # reachability_edges_dst passed as argument
-    # edge_transition_indices passed as argument
     edge_count = 0
     is_bounded = True
 
@@ -178,10 +237,22 @@ def _bfs_core(
             enabled_transition_index = enabled_transition_indices[i]
             new_marking_hash = fnv1a_hash(new_marking)
 
-            if new_marking_hash not in explored_markings_dict:
+            existing_index, slot = _lookup_or_insert(
+                table_keys,
+                table_values,
+                used_slots,
+                num_used_ptr,
+                visited_markings_array,
+                new_marking,
+                new_marking_hash,
+                table_mask,
+                num_places,
+            )
+
+            if existing_index == -1:
                 marking_index_counter += 1
                 visited_markings_array[marking_index_counter] = new_marking
-                explored_markings_dict[new_marking_hash] = marking_index_counter
+                table_values[slot] = marking_index_counter
 
                 if marking_index_counter >= max_markings_to_explore - 1:
                     reachability_edges_src[edge_count] = current_marking_index
@@ -199,7 +270,6 @@ def _bfs_core(
                 edge_transition_indices[edge_count] = enabled_transition_index
                 edge_count += 1
             else:
-                existing_index = explored_markings_dict[new_marking_hash]
                 reachability_edges_src[edge_count] = current_marking_index
                 reachability_edges_dst[edge_count] = existing_index
                 edge_transition_indices[edge_count] = enabled_transition_index
@@ -207,6 +277,11 @@ def _bfs_core(
 
         if not is_bounded:
             break
+
+    # Fast reset of modified table slots
+    for k in range(num_used_ptr[0]):
+        table_values[used_slots[k]] = -1
+    num_used_ptr[0] = 0
 
     return (
         visited_markings_array[: marking_index_counter + 1],
@@ -253,7 +328,13 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
         scratch_edge_indices,
         scratch_enabled_trans,
         scratch_new_marks,
+        scratch_table_keys,
+        scratch_table_values,
+        scratch_used_slots,
+        scratch_num_used_ptr,
     ) = _get_scratchpad(max_markings_to_explore, num_places, num_transitions)
+
+    table_mask = np.uint64(scratch_table_keys.shape[0] - 1)
 
     visited_markings_list, reach_src, reach_dst, edge_transition_indices, is_bounded = _bfs_core(
         initial_marking,
@@ -268,6 +349,11 @@ def generate_reachability_graph(incidence_matrix_with_initial, place_upper_limit
         scratch_edge_indices,
         scratch_enabled_trans,
         scratch_new_marks,
+        scratch_table_keys,
+        scratch_table_values,
+        scratch_used_slots,
+        scratch_num_used_ptr,
+        table_mask,
     )
 
     # Note: visited_markings_list, reach_src, etc. are views of the scratchpad.
